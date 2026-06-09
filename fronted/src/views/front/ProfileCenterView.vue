@@ -2,9 +2,11 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import OrderReview from '../../components/OrderReview.vue'
 import ProductListItem from '../../components/product/ProductListItem.vue'
-import { itemApi, userApi } from '../../services/api'
-import { normalizeItemPage } from '../../services/normalizers'
+import ReviewList from '../../components/ReviewList.vue'
+import { itemApi, orderApi, userApi } from '../../services/api'
+import { normalizeItemPage, normalizeOrder } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
@@ -15,8 +17,11 @@ const validItemStatusTabs = ['onSale', 'removed', 'sold', 'drafts']
 const activeItemStatus = ref(validItemStatusTabs.includes(route.query.itemStatus) ? route.query.itemStatus : 'onSale')
 const myProducts = ref([])
 const favoriteProducts = ref([])
+const orders = ref([])
 const notifications = ref([])
 const loadingItems = ref(false)
+const reviewDialogVisible = ref(false)
+const reviewOrder = ref(null)
 
 const menuItems = [
   { key: 'selling', label: '我的在售商品' },
@@ -36,6 +41,7 @@ const privacy = ref({
 
 const title = computed(() => menuItems.find((item) => item.key === activeMenu.value)?.label)
 const currentUser = computed(() => authStore.user || {})
+const currentUserId = computed(() => currentUser.value.userId || currentUser.value.id)
 const displayName = computed(() => currentUser.value.nickname || currentUser.value.realName || currentUser.value.account)
 const avatarText = computed(() => displayName.value?.slice(0, 1) || '用')
 const onSaleProducts = computed(() => myProducts.value.filter((product) => product.status === 'ON_SALE'))
@@ -97,16 +103,19 @@ async function fetchUserItems() {
 
   loadingItems.value = true
   try {
-    const [itemsResponse, favoritesResponse] = await Promise.all([
+    const [itemsResponse, favoritesResponse, ordersResponse] = await Promise.all([
       userApi.getMyItems({ page: 1, pageSize: 100 }),
       userApi.getMyFavorites({ page: 1, pageSize: 100 }),
+      orderApi.list({ page: 1, pageSize: 100 }),
     ])
     myProducts.value = normalizeItemPage(itemsResponse).list
     favoriteProducts.value = normalizeItemPage(favoritesResponse).list
+    orders.value = (ordersResponse.data?.list || []).map(normalizeOrder)
     await fetchNotifications()
   } catch (error) {
     myProducts.value = []
     favoriteProducts.value = []
+    orders.value = []
     notifications.value = []
     console.error(error)
   } finally {
@@ -147,6 +156,77 @@ function statusType(status) {
   if (status === 'REMOVED') return 'danger'
   if (status === 'SOLD' || status === 'RESERVED') return 'info'
   return 'warning'
+}
+
+function orderStatusText(status) {
+  const map = {
+    PENDING: '待接单',
+    ACCEPTED: '待支付',
+    PAYING: '支付中',
+    PAID: '已支付',
+    COMPLETED: '已完成',
+    CANCELLED: '已取消',
+  }
+  return map[status] || status || '未知'
+}
+
+function orderStatusType(status) {
+  if (status === 'COMPLETED') return 'success'
+  if (status === 'CANCELLED') return 'info'
+  if (status === 'PAID') return 'success'
+  if (status === 'PAYING') return 'warning'
+  return 'primary'
+}
+
+function notificationTypeText(type) {
+  const map = {
+    ORDER: '订单信息',
+    COMMENT: '留言信息',
+    SYSTEM: '系统信息',
+  }
+  return map[type] || '系统信息'
+}
+
+function notificationTagType(type) {
+  if (type === 'ORDER') return 'primary'
+  if (type === 'COMMENT') return 'success'
+  return 'warning'
+}
+
+function isBuyer(order) {
+  return String(order.buyerId) === String(currentUserId.value)
+}
+
+function isSeller(order) {
+  return String(order.sellerId) === String(currentUserId.value)
+}
+
+function orderRoleText(order) {
+  return isSeller(order) ? '我是卖家' : '我是买家'
+}
+
+function orderCounterparty(order) {
+  return isSeller(order) ? order.buyerName || '买家' : order.sellerName || '卖家'
+}
+
+function canAcceptOrder(order) {
+  return isSeller(order) && order.status === 'PENDING'
+}
+
+function canPayOrder(order) {
+  return isBuyer(order) && ['PENDING', 'ACCEPTED', 'PAYING'].includes(order.status)
+}
+
+function canCompleteOrder(order) {
+  return ['ACCEPTED', 'PAID'].includes(order.status)
+}
+
+function canCancelOrder(order) {
+  return !['COMPLETED', 'CANCELLED'].includes(order.status)
+}
+
+function canReviewOrder(order) {
+  return isBuyer(order) && order.status === 'COMPLETED' && !order.reviewedByBuyer
 }
 
 async function publishProduct(product) {
@@ -190,6 +270,75 @@ function deleteProduct(product) {
 function viewProduct(product) {
   router.push(`/items/${product.id}`)
 }
+
+async function acceptOrder(order) {
+  try {
+    await orderApi.accept(order.id)
+    ElMessage.success('已接单')
+    await fetchUserItems()
+  } catch (error) {
+    ElMessage.error(error.message || '接单失败')
+  }
+}
+
+async function cancelOrder(order) {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写取消原因', '取消订单', {
+      confirmButtonText: '确认取消',
+      cancelButtonText: '返回',
+      inputPlaceholder: '例如：时间无法协调',
+    })
+    await orderApi.cancel(order.id, { reason: value || '用户取消' })
+    ElMessage.success('订单已取消')
+    await fetchUserItems()
+  } catch (error) {
+    if (error !== 'cancel') ElMessage.error(error.message || '取消失败')
+  }
+}
+
+async function completeOrder(order) {
+  try {
+    await orderApi.complete(order.id)
+    ElMessage.success('订单已完成')
+    await fetchUserItems()
+  } catch (error) {
+    ElMessage.error(error.message || '完成失败')
+  }
+}
+
+async function payOrder(order, provider) {
+  try {
+    const response = await orderApi.pay(order.id, { provider })
+    const payment = response.data
+    if (payment.paymentUrl) {
+      window.location.href = payment.paymentUrl
+      return
+    }
+    if (payment.qrUrl) {
+      ElMessageBox.alert(payment.qrUrl, `${provider} 支付二维码链接`, {
+        confirmButtonText: '知道了',
+      })
+      return
+    }
+    ElMessage.success('支付单已创建')
+    await fetchUserItems()
+  } catch (error) {
+    ElMessage.error(error.message || '支付创建失败')
+  }
+}
+
+function viewOrderDetail(order) {
+  ElMessageBox.alert(
+    `订单号：${order.orderNo}\n身份：${orderRoleText(order)}\n对方：${orderCounterparty(order)}\n状态：${orderStatusText(order.status)}\n交易口令：${order.tradeCode || '-'}\n商品：${order.product.title || '-'}`,
+    `订单 ${order.orderNo}`,
+    { confirmButtonText: '知道了' },
+  )
+}
+
+function openReview(order) {
+  reviewOrder.value = order
+  reviewDialogVisible.value = true
+}
 </script>
 
 <template>
@@ -216,6 +365,7 @@ function viewProduct(product) {
         <div class="profile-stats">
           <div><strong>{{ onSaleProducts.length }}</strong><span>在售商品</span></div>
           <div><strong>{{ soldProducts.length }}</strong><span>已售商品</span></div>
+          <div><strong>{{ orders.length }}</strong><span>相关订单</span></div>
           <div><strong>{{ favoriteProducts.length }}</strong><span>收藏商品</span></div>
         </div>
       </el-card>
@@ -234,6 +384,8 @@ function viewProduct(product) {
             <div class="card-header">
               <span>{{ title }}</span>
               <el-tag v-if="activeMenu === 'selling'" type="warning">上架 / 下架 / 已出 / 草稿</el-tag>
+              <el-tag v-else-if="activeMenu === 'orders'" type="primary">买家 / 卖家同步</el-tag>
+              <el-tag v-else-if="activeMenu === 'reviews'" type="success">交易评价</el-tag>
             </div>
           </template>
 
@@ -300,7 +452,43 @@ function viewProduct(product) {
           </div>
 
           <div v-else-if="activeMenu === 'orders'" class="order-mini-list">
-            <el-empty description="暂无订单" />
+            <div v-if="orders.length > 0" class="profile-order-list">
+              <div v-for="order in orders" :key="order.id" class="mini-order">
+                <el-image :src="order.product.image" fit="cover" />
+                <div class="mini-order-main">
+                  <strong>{{ order.product.title || '商品已删除' }}</strong>
+                  <p>订单号：{{ order.orderNo }} · {{ order.createdAt }}</p>
+                  <p>{{ orderRoleText(order) }} · 对方：{{ orderCounterparty(order) }}</p>
+                </div>
+                <div class="mini-order-state">
+                  <el-tag :type="orderStatusType(order.status)">{{ orderStatusText(order.status) }}</el-tag>
+                  <strong>￥{{ order.amount }}</strong>
+                </div>
+                <div class="mini-order-actions">
+                  <el-button size="small" @click="viewOrderDetail(order)">详情</el-button>
+                  <el-button v-if="canAcceptOrder(order)" size="small" type="primary" @click="acceptOrder(order)">
+                    接单
+                  </el-button>
+                  <el-dropdown v-if="canPayOrder(order)" @command="payOrder(order, $event)">
+                    <el-button size="small" type="success">去支付</el-button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="ALIPAY">支付宝</el-dropdown-item>
+                        <el-dropdown-item command="WECHAT">微信支付</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                  <el-button v-if="canCompleteOrder(order)" size="small" type="primary" @click="completeOrder(order)">
+                    完成
+                  </el-button>
+                  <el-button v-if="canReviewOrder(order)" size="small" type="warning" @click="openReview(order)">
+                    评价
+                  </el-button>
+                  <el-button v-if="canCancelOrder(order)" size="small" @click="cancelOrder(order)">取消</el-button>
+                </div>
+              </div>
+            </div>
+            <el-empty v-else description="暂无订单" />
           </div>
 
           <div v-else-if="activeMenu === 'favorites'" class="product-list">
@@ -315,13 +503,15 @@ function viewProduct(product) {
                 <p>{{ notice.content }}</p>
                 <small>{{ notice.createdAt }}</small>
               </div>
-              <el-tag type="warning" effect="plain">系统信息</el-tag>
+              <el-tag :type="notificationTagType(notice.type)" effect="plain">
+                {{ notificationTypeText(notice.type) }}
+              </el-tag>
             </div>
             <el-empty v-if="notifications.length === 0" description="暂无系统通知" />
           </div>
 
           <div v-else-if="activeMenu === 'reviews'" class="review-list">
-            <el-empty description="暂无评价" />
+            <ReviewList :user-id="currentUserId" />
           </div>
 
           <div v-else-if="activeMenu === 'wanted'">
@@ -350,6 +540,7 @@ function viewProduct(product) {
           </div>
         </el-card>
       </section>
+      <OrderReview v-model="reviewDialogVisible" :order="reviewOrder" @submitted="fetchUserItems" />
     </template>
   </main>
 </template>

@@ -25,9 +25,11 @@ public class AdminService {
 	private static final DateTimeFormatter DAY_LABEL = DateTimeFormatter.ofPattern("MM-dd");
 
 	private final JdbcTemplate jdbcTemplate;
+	private final MessageService messageService;
 
-	public AdminService(JdbcTemplate jdbcTemplate) {
+	public AdminService(JdbcTemplate jdbcTemplate, MessageService messageService) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.messageService = messageService;
 	}
 
 	public Map<String, Object> dashboard() {
@@ -257,12 +259,10 @@ public class AdminService {
 				? jdbcTemplate.queryForList(targetSql, Long.class)
 				: jdbcTemplate.queryForList(targetSql, Long.class, payload.campus());
 		for (Long userId : userIds) {
-			jdbcTemplate.update("""
-					INSERT INTO notifications (user_id, type, title, content)
-					VALUES (?, 'SYSTEM', ?, ?)
-					""", userId, truncate("平台公告：" + payload.title(), 150),
+			messageService.createNotification(userId, "SYSTEM", truncate("平台公告：" + payload.title(), 150),
 					truncate(payload.content(), 1000));
 		}
+		messageService.broadcast(payload.title(), payload.content());
 	}
 
 	private String truncate(String value, int maxLength) {

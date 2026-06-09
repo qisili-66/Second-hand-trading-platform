@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Flag, StarFilled } from '@element-plus/icons-vue'
 import ProductGridCard from '../../components/product/ProductGridCard.vue'
+import ReviewList from '../../components/ReviewList.vue'
 import { conditionTagMap } from '../../data/mock'
 import { chatApi, itemApi, orderApi } from '../../services/api'
 import { normalizeComment, normalizeItem, normalizeItemPage } from '../../services/normalizers'
@@ -261,6 +262,11 @@ async function submitComment() {
             发表留言
           </el-button>
         </div>
+      </el-card>
+
+      <el-card shadow="never">
+        <template #header>卖家评价</template>
+        <ReviewList :user-id="product.sellerId" compact />
       </el-card>
 
       <el-card shadow="never">

@@ -13,15 +13,18 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.Second_hand.trading.platform.dto.ApiResponse;
 import com.example.Second_hand.trading.platform.dto.PageResponse;
+import com.example.Second_hand.trading.platform.service.ReviewService;
 import com.example.Second_hand.trading.platform.service.TradeWorkflowService;
 
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
 	private final TradeWorkflowService tradeWorkflowService;
+	private final ReviewService reviewService;
 
-	public OrderController(TradeWorkflowService tradeWorkflowService) {
+	public OrderController(TradeWorkflowService tradeWorkflowService, ReviewService reviewService) {
 		this.tradeWorkflowService = tradeWorkflowService;
+		this.reviewService = reviewService;
 	}
 
 	@PostMapping
@@ -74,7 +77,10 @@ public class OrderController {
 	}
 
 	@PostMapping("/{orderId}/reviews")
-	public ApiResponse<Map<String, Object>> review(@PathVariable Integer orderId, @RequestBody Map<String, Object> body) {
-		return ApiResponse.success(Map.of("reviewId", 8002));
+	public ApiResponse<Map<String, Object>> review(
+			@RequestAttribute("authId") Long authId,
+			@PathVariable Integer orderId,
+			@RequestBody Map<String, Object> body) {
+		return ApiResponse.success(reviewService.createOrderReview(authId, orderId, body));
 	}
 }

@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import OrderReview from '../../components/OrderReview.vue'
 import { orderApi } from '../../services/api'
 import { normalizeOrder } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
@@ -11,6 +12,9 @@ const authStore = useAuthStore()
 const activeStatus = ref('ALL')
 const orders = ref([])
 const loading = ref(false)
+const reviewDialogVisible = ref(false)
+const reviewOrder = ref(null)
+const currentUserId = computed(() => authStore.user?.userId || authStore.user?.id)
 
 const statuses = [
   { label: '全部', value: 'ALL' },
@@ -27,6 +31,62 @@ const visibleOrders = computed(() =>
     ? orders.value
     : orders.value.filter((order) => order.status === activeStatus.value),
 )
+
+function orderStatusText(status) {
+  const map = {
+    PENDING: '待接单',
+    ACCEPTED: '待支付',
+    PAYING: '支付中',
+    PAID: '已支付',
+    COMPLETED: '已完成',
+    CANCELLED: '已取消',
+  }
+  return map[status] || status || '未知'
+}
+
+function orderStatusType(status) {
+  if (status === 'COMPLETED') return 'success'
+  if (status === 'CANCELLED') return 'info'
+  if (status === 'PAID') return 'success'
+  if (status === 'PAYING') return 'warning'
+  return 'primary'
+}
+
+function isBuyer(order) {
+  return String(order.buyerId) === String(currentUserId.value)
+}
+
+function isSeller(order) {
+  return String(order.sellerId) === String(currentUserId.value)
+}
+
+function orderRoleText(order) {
+  return isSeller(order) ? '我是卖家' : '我是买家'
+}
+
+function orderCounterparty(order) {
+  return isSeller(order) ? order.buyerName || '买家' : order.sellerName || '卖家'
+}
+
+function canAcceptOrder(order) {
+  return isSeller(order) && order.status === 'PENDING'
+}
+
+function canPayOrder(order) {
+  return isBuyer(order) && ['PENDING', 'ACCEPTED', 'PAYING'].includes(order.status)
+}
+
+function canCompleteOrder(order) {
+  return ['ACCEPTED', 'PAID'].includes(order.status)
+}
+
+function canCancelOrder(order) {
+  return !['COMPLETED', 'CANCELLED'].includes(order.status)
+}
+
+function canReviewOrder(order) {
+  return isBuyer(order) && order.status === 'COMPLETED' && !order.reviewedByBuyer
+}
 
 watch(
   () => authStore.isLoggedIn,
@@ -108,10 +168,15 @@ async function payOrder(order, provider) {
 
 function viewDetail(order) {
   ElMessageBox.alert(
-    `订单号：${order.orderNo}\n状态：${order.status}\n交易口令：${order.tradeCode || '-'}\n商品：${order.product.title}`,
+    `订单号：${order.orderNo}\n身份：${orderRoleText(order)}\n对方：${orderCounterparty(order)}\n状态：${orderStatusText(order.status)}\n交易口令：${order.tradeCode || '-'}\n商品：${order.product.title}`,
     `订单 ${order.orderNo}`,
     { confirmButtonText: '知道了' },
   )
+}
+
+function openReview(order) {
+  reviewOrder.value = order
+  reviewDialogVisible.value = true
 }
 </script>
 
@@ -138,13 +203,14 @@ function viewDetail(order) {
             <el-card v-for="order in visibleOrders" :key="order.id" class="order-card" shadow="hover">
               <div class="order-head">
                 <span>订单号：{{ order.orderNo }}</span>
-                <el-tag type="warning">{{ order.status }}</el-tag>
+                <el-tag :type="orderStatusType(order.status)">{{ orderStatusText(order.status) }}</el-tag>
               </div>
               <div class="order-body">
                 <el-image :src="order.product.image" fit="cover" />
                 <div class="order-info">
                   <h3>{{ order.product.title }}</h3>
                   <p>{{ order.tradeMode }} · {{ order.createdAt }}</p>
+                  <p>{{ orderRoleText(order) }} · 对方：{{ orderCounterparty(order) }}</p>
                   <strong>￥{{ order.amount }}</strong>
                 </div>
                 <div class="trade-code">
@@ -154,8 +220,8 @@ function viewDetail(order) {
                 </div>
                 <div class="order-actions">
                   <el-button @click="viewDetail(order)">查看详情</el-button>
-                  <el-button v-if="order.status === 'PENDING'" type="primary" @click="acceptOrder(order)">接单</el-button>
-                  <el-dropdown v-if="['PENDING', 'ACCEPTED', 'PAYING'].includes(order.status)" @command="payOrder(order, $event)">
+                  <el-button v-if="canAcceptOrder(order)" type="primary" @click="acceptOrder(order)">接单</el-button>
+                  <el-dropdown v-if="canPayOrder(order)" @command="payOrder(order, $event)">
                     <el-button type="success">去支付</el-button>
                     <template #dropdown>
                       <el-dropdown-menu>
@@ -164,10 +230,13 @@ function viewDetail(order) {
                       </el-dropdown-menu>
                     </template>
                   </el-dropdown>
-                  <el-button v-if="['ACCEPTED', 'PAID'].includes(order.status)" type="primary" @click="completeOrder(order)">
+                  <el-button v-if="canCompleteOrder(order)" type="primary" @click="completeOrder(order)">
                     完成交易
                   </el-button>
-                  <el-button v-if="!['COMPLETED', 'CANCELLED'].includes(order.status)" @click="cancelOrder(order)">
+                  <el-button v-if="canReviewOrder(order)" type="warning" @click="openReview(order)">
+                    评价卖家
+                  </el-button>
+                  <el-button v-if="canCancelOrder(order)" @click="cancelOrder(order)">
                     取消
                   </el-button>
                 </div>
@@ -177,6 +246,7 @@ function viewDetail(order) {
           </div>
         </el-tab-pane>
       </el-tabs>
+      <OrderReview v-model="reviewDialogVisible" :order="reviewOrder" @submitted="fetchOrders" />
     </template>
   </main>
 </template>

@@ -42,14 +42,16 @@ public class PaymentService {
 	private final OrderMapper orderMapper;
 	private final OrderStatusLogMapper orderStatusLogMapper;
 	private final PaymentProperties properties;
+	private final MessageService messageService;
 	private final HttpClient httpClient = HttpClient.newHttpClient();
 
 	public PaymentService(PaymentMapper paymentMapper, OrderMapper orderMapper,
-			OrderStatusLogMapper orderStatusLogMapper, PaymentProperties properties) {
+			OrderStatusLogMapper orderStatusLogMapper, PaymentProperties properties, MessageService messageService) {
 		this.paymentMapper = paymentMapper;
 		this.orderMapper = orderMapper;
 		this.orderStatusLogMapper = orderStatusLogMapper;
 		this.properties = properties;
+		this.messageService = messageService;
 	}
 
 	@Transactional
@@ -140,6 +142,7 @@ public class PaymentService {
 			log.setOperatorType("PAYMENT");
 			log.setRemark("支付回调确认");
 			orderStatusLogMapper.insert(log);
+			messageService.pushOrderNotification(order, "订单已支付", "订单 " + order.getOrderNo() + " 支付已确认。");
 		}
 	}
 

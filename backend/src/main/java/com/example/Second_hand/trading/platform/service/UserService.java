@@ -52,8 +52,62 @@ public class UserService {
 				""", userId);
 	}
 
+	public void updateCreditScore(Long userId, int rating) {
+		if (userId == null) {
+			return;
+		}
+		int delta = rating >= 4 ? 5 : rating == 3 ? 0 : -10;
+		jdbcTemplate.update("""
+				UPDATE users
+				SET credit_score = GREATEST(0, LEAST(credit_score + ?, 200))
+				WHERE id = ? AND deleted = 0
+				""", delta, userId);
+	}
+
+	public Integer getUserCreditScore(Long userId) {
+		if (userId == null) {
+			return 100;
+		}
+		List<Integer> scores = jdbcTemplate.queryForList("""
+				SELECT credit_score
+				FROM users
+				WHERE id = ? AND deleted = 0
+				LIMIT 1
+				""", Integer.class, userId);
+		return scores.isEmpty() ? 100 : scores.get(0);
+	}
+
 	public List<Map<String, Object>> reviews(Integer userId) {
-		return List.of();
+		if (userId == null) {
+			return List.of();
+		}
+		return jdbcTemplate.queryForList("""
+				SELECT c.id AS reviewId, c.id AS commentId, 'SENT' AS relation,
+				  c.item_id AS itemId, i.title AS itemTitle,
+				  (SELECT image_url FROM item_images img WHERE img.item_id = c.item_id ORDER BY sort_order, id LIMIT 1) AS coverUrl,
+				  c.user_id AS userId, commenter.nickname AS userName,
+				  i.seller_id AS sellerId, seller.nickname AS sellerName,
+				  c.content, c.created_at AS createdAt
+				FROM item_comments c
+				LEFT JOIN items i ON i.id = c.item_id
+				LEFT JOIN users commenter ON commenter.id = c.user_id
+				LEFT JOIN users seller ON seller.id = i.seller_id
+				WHERE c.deleted = 0 AND c.user_id = ? AND (i.deleted = 0 OR i.deleted IS NULL)
+				UNION ALL
+				SELECT c.id AS reviewId, c.id AS commentId, 'RECEIVED' AS relation,
+				  c.item_id AS itemId, i.title AS itemTitle,
+				  (SELECT image_url FROM item_images img WHERE img.item_id = c.item_id ORDER BY sort_order, id LIMIT 1) AS coverUrl,
+				  c.user_id AS userId, commenter.nickname AS userName,
+				  i.seller_id AS sellerId, seller.nickname AS sellerName,
+				  c.content, c.created_at AS createdAt
+				FROM item_comments c
+				LEFT JOIN items i ON i.id = c.item_id
+				LEFT JOIN users commenter ON commenter.id = c.user_id
+				LEFT JOIN users seller ON seller.id = i.seller_id
+				WHERE c.deleted = 0 AND i.seller_id = ? AND c.user_id <> ? AND i.deleted = 0
+				ORDER BY createdAt DESC
+				LIMIT 100
+				""", userId, userId, userId);
 	}
 
 	private Map<String, Object> userById(Long userId) {

@@ -8,19 +8,23 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.Second_hand.trading.platform.dto.ApiResponse;
 import com.example.Second_hand.trading.platform.dto.PageResponse;
+import com.example.Second_hand.trading.platform.service.ReviewService;
 import com.example.Second_hand.trading.platform.service.UserService;
 
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
 	private final UserService userService;
+	private final ReviewService reviewService;
 
-	public UserController(UserService userService) {
+	public UserController(UserService userService, ReviewService reviewService) {
 		this.userService = userService;
+		this.reviewService = reviewService;
 	}
 
 	@GetMapping("/me")
@@ -53,7 +57,10 @@ public class UserController {
 	}
 
 	@GetMapping("/{userId}/reviews")
-	public ApiResponse<PageResponse<Map<String, Object>>> reviews(@PathVariable Integer userId) {
-		return ApiResponse.success(PageResponse.of(userService.reviews(userId), 1, 10));
+	public ApiResponse<PageResponse<Map<String, Object>>> reviews(
+			@PathVariable Integer userId,
+			@RequestParam(defaultValue = "1") int page,
+			@RequestParam(defaultValue = "10") int pageSize) {
+		return ApiResponse.success(PageResponse.page(reviewService.reviewsByTarget(userId.longValue()), page, pageSize));
 	}
 }

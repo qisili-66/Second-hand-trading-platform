@@ -1,9 +1,11 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Bell, DataAnalysis, House, Plus, QuestionFilled, Search, User } from '@element-plus/icons-vue'
+import NotificationPanel from './components/NotificationPanel.vue'
 import { userApi } from './services/api'
+import { connectWebSocket, disconnectWebSocket } from './services/websocket'
 import { useAuthStore } from './stores/auth'
 
 const router = useRouter()
@@ -15,12 +17,21 @@ const unreadNotifications = computed(() => notifications.value.filter((notice) =
 
 function normalizeNotice(row = {}) {
   return {
-    id: row.notificationId || row.id,
+    id: row.notificationId || row.id || `${row.type || 'SYSTEM'}-${row.createdAt || Date.now()}`,
     title: row.title || '系统通知',
     content: row.content || '',
+    type: row.type || 'SYSTEM',
     readAt: row.readAt || '',
     createdAt: String(row.createdAt || '').replace('T', ' ').slice(0, 16),
   }
+}
+
+function upsertNotification(row = {}) {
+  const notice = normalizeNotice(row)
+  notifications.value = [
+    notice,
+    ...notifications.value.filter((item) => String(item.id) !== String(notice.id)),
+  ].slice(0, 20)
 }
 
 async function loadNotifications() {
@@ -67,17 +78,44 @@ function goPublish() {
 }
 
 function logout() {
+  disconnectWebSocket()
   authStore.logout()
   notifications.value = []
   ElMessage.success('已退出登录')
   router.push('/')
 }
 
-onMounted(loadNotifications)
+function connectRealtime() {
+  if (!authStore.isLoggedIn || authStore.isAdmin) return
+  connectWebSocket({
+    onNotification: upsertNotification,
+    onBroadcast: (payload) => {
+      upsertNotification({
+        ...payload,
+        type: 'SYSTEM',
+        title: payload.title || '平台公告',
+      })
+    },
+    onMessage: () => {
+      ElMessage.info('收到新的聊天消息')
+    },
+  })
+}
+
+onMounted(() => {
+  loadNotifications()
+  connectRealtime()
+})
+
+onUnmounted(disconnectWebSocket)
 
 watch(
   () => [authStore.isLoggedIn, authStore.isAdmin],
-  () => loadNotifications(),
+  () => {
+    loadNotifications()
+    disconnectWebSocket()
+    connectRealtime()
+  },
 )
 
 watch(
@@ -150,21 +188,11 @@ watch(
                 <el-button :icon="Bell" circle size="large" aria-label="消息通知" />
               </el-badge>
             </template>
-            <div class="notice-panel">
-              <h3>消息通知</h3>
-              <ul v-if="notifications.length > 0">
-                <li v-for="notice in notifications.slice(0, 5)" :key="notice.id">
-                  <strong>{{ notice.title }}</strong>
-                  <p>{{ notice.content }}</p>
-                  <small>{{ notice.createdAt }}</small>
-                </li>
-              </ul>
-              <el-empty v-else description="暂无消息" :image-size="72" />
-              <el-button text type="primary" @click="router.push({ path: '/profile', query: { tab: 'notifications' } })">
-                查看系统通知
-              </el-button>
-              <el-button text type="primary" @click="router.push('/chats')">查看聊天消息</el-button>
-            </div>
+            <NotificationPanel
+              :notifications="notifications"
+              @view-all="router.push({ path: '/profile', query: { tab: 'notifications' } })"
+            />
+            <el-button text type="primary" @click="router.push('/chats')">查看聊天消息</el-button>
           </el-popover>
         </div>
       </header>

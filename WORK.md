@@ -53,10 +53,12 @@
 
 - `AuthService`：注册、普通用户登录、管理员登录。
 - `JwtService`：JWT 签发、解析和校验。
-- `UserService`：当前用户、我的发布、我的收藏、用户评价。
+- `UserService`：当前用户、我的发布、我的收藏、用户信用分。
 - `ItemService`：分类、商品筛选分页、商品发布、收藏、留言、商品图片关联。
 - `FileStorageService`：商品图片上传落盘、`files` 表记录和公开图片读取。
 - `TradeWorkflowService`：订单、聊天。
+- `ReviewService`：订单评价、用户评价列表、评分统计、信用分联动。
+- `MessageService`：通知落库、订单/聊天/系统通知和广播 WebSocket 推送。
 - `BazaarService`：求购、置换和匹配推荐。
 - `AdminService`：后台看板、举报、纠纷、设置、公告。
 - `HealthService`：健康检查。
@@ -418,6 +420,55 @@ cd backend
 ```
 
 结果：通过，1 个测试，0 失败，0 错误。
+
+前端：
+
+```powershell
+cd fronted
+npm run build
+```
+
+结果：通过；仍有 Vite/Rolldown pure annotation 和 chunk size warning，不影响运行。
+
+## 新增功能（2026-06-08）：用户评价、信用积分、实时消息推送
+
+### 后端
+
+- 新增 `ReviewEntity`、`ReviewMapper`、`ReviewService`、`ReviewController`。
+- 复用已有 `reviews` 表，不新增数据库表；无需重新执行建表 SQL。
+- `POST /api/reviews` 和 `POST /api/orders/{orderId}/reviews` 已真实创建订单评价。
+- `GET /api/reviews/user/{userId}`、`GET /api/reviews/user/{userId}/stats`、`GET /api/users/{userId}/reviews` 已返回真实评价列表和评分统计。
+- 评价业务规则已在后端强制校验：只有已完成订单买家可评价卖家；目标卖家由订单 `seller_id` 推导；同一订单同一买家只能评价一次；评分 1-5；内容最长 500 字。
+- `UserService.updateCreditScore()` 和 `UserService.getUserCreditScore()` 已实现信用分联动：4-5 星 `+5`，3 星 `0`，1-2 星 `-10`，范围限制在 `0 - 200`。
+- 新增 `NotificationEntity`、`NotificationMapper`、`MessageService`，通知统一落库并推送。
+- 新增 `WebSocketConfig`，启用 SockJS + STOMP，`/ws` 连接要求 `Authorization: Bearer <jwt>`。
+- 允许订阅 `/user/queue/notifications`、`/user/queue/messages`、`/topic/broadcast`；客户端 `SEND` 已禁用。
+- 订单预约、接单、取消、完成、支付成功、聊天消息、管理员公告和评价通知已接入推送。
+
+### 前端
+
+- 新增 `OrderReview.vue`：订单完成后买家对卖家评分和文字评价。
+- 新增 `ReviewList.vue`：展示卖家评价、平均分、评价数和信用分。
+- 新增 `NotificationPanel.vue` 和 `services/websocket.js`：登录后连接 WebSocket 并订阅通知、聊天消息和公告广播。
+- `OrdersView.vue`、`ProfileCenterView.vue`：完成订单后显示“评价卖家/评价”按钮，提交后刷新订单状态。
+- `ItemDetailView.vue`：商品详情展示卖家真实评价。
+- `package.json` / `package-lock.json` 已添加 `sockjs-client@1.6.1`、`stompjs@2.3.3`。
+- `vite.config.js` 已添加 `/ws` 代理。
+
+### 文档同步
+
+- `README.md`、`API.md`、`WORK.md` 已同步用户评价、信用积分、WebSocket 推送、依赖和验证说明。
+
+### 验证结果
+
+后端：
+
+```powershell
+cd backend
+cmd /c ""C:\Users\zhangmei\.m2\wrapper\dists\apache-maven-3.9.14\ed7edd442f634ac1c1ef5ba2b61b6d690b5221091f1a8e1123f5fadcc967520d\bin\mvn.cmd" -Dmaven.repo.local=C:\Users\zhangmei\.m2\repository -Dmaven.compiler.fork=true -e test"
+```
+
+结果：通过，1 个测试，0 失败，0 错误。Windows/JDK 在关闭本地 Maven 缓存 jar 的 zipfs 时仍打印 `AccessDeniedException` 诊断信息，但 Maven 最终 `BUILD SUCCESS`。
 
 前端：
 

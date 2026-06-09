@@ -42,15 +42,18 @@ public class ItemService {
 	private final FileMapper fileMapper;
 	private final FavoriteMapper favoriteMapper;
 	private final ItemCommentMapper itemCommentMapper;
+	private final MessageService messageService;
 
 	public ItemService(JdbcTemplate jdbcTemplate, ItemMapper itemMapper, ItemImageMapper itemImageMapper,
-			FileMapper fileMapper, FavoriteMapper favoriteMapper, ItemCommentMapper itemCommentMapper) {
+			FileMapper fileMapper, FavoriteMapper favoriteMapper, ItemCommentMapper itemCommentMapper,
+			MessageService messageService) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.itemMapper = itemMapper;
 		this.itemImageMapper = itemImageMapper;
 		this.fileMapper = fileMapper;
 		this.favoriteMapper = favoriteMapper;
 		this.itemCommentMapper = itemCommentMapper;
+		this.messageService = messageService;
 	}
 
 	public List<Map<String, Object>> categories() {
@@ -310,7 +313,7 @@ public class ItemService {
 		if (userId == null) {
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
 		}
-		requireItem(itemId);
+		ItemEntity item = requireAnyItem(itemId);
 		String content = requiredText(body, "content", "留言内容");
 		if (content.length() > 500) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "留言不能超过 500 字");
@@ -323,6 +326,10 @@ public class ItemService {
 		comment.setContent(content);
 		comment.setDeleted(0);
 		itemCommentMapper.insert(comment);
+		if (!userId.equals(item.getSellerId())) {
+			notifySeller(item, "COMMENT", "收到新的商品留言",
+					displayName(userId) + " 给你的商品「" + item.getTitle() + "」留言：" + content);
+		}
 		return commentRow(comment);
 	}
 
@@ -543,13 +550,24 @@ public class ItemService {
 	}
 
 	private void notifySeller(ItemEntity item, String title, String content) {
+		notifySeller(item, "SYSTEM", title, content);
+	}
+
+	private void notifySeller(ItemEntity item, String type, String title, String content) {
 		if (item == null || item.getSellerId() == null) {
 			return;
 		}
-		jdbcTemplate.update("""
-				INSERT INTO notifications (user_id, type, title, content)
-				VALUES (?, 'SYSTEM', ?, ?)
-				""", item.getSellerId(), title, content);
+		messageService.createNotification(item.getSellerId(), type, title, content);
+	}
+
+	private String displayName(Long userId) {
+		List<String> names = jdbcTemplate.queryForList("""
+				SELECT nickname
+				FROM users
+				WHERE id = ? AND deleted = 0
+				LIMIT 1
+				""", String.class, userId);
+		return names.isEmpty() || !StringUtils.hasText(names.get(0)) ? "用户" + userId : names.get(0);
 	}
 
 	private List<String> imageUrls(Map<String, Object> body) {

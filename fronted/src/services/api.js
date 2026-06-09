@@ -82,6 +82,13 @@ export const orderApi = {
   review: (orderId, data) => api.post(`/orders/${orderId}/reviews`, data),
 }
 
+export const reviewApi = {
+  create: (data) => api.post('/reviews', data),
+  createByOrder: (orderId, data) => api.post(`/orders/${orderId}/reviews`, data),
+  userList: (userId, params) => api.get(`/reviews/user/${userId}`, { params }),
+  userStats: (userId) => api.get(`/reviews/user/${userId}/stats`),
+}
+
 export const wantedApi = {
   create: (data) => api.post('/purchases', data),
   list: (params) => api.get('/purchases', { params }),

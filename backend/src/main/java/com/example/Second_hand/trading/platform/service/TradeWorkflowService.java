@@ -34,17 +34,19 @@ public class TradeWorkflowService {
 	private final ChatMapper chatMapper;
 	private final ChatMessageMapper chatMessageMapper;
 	private final PaymentService paymentService;
+	private final MessageService messageService;
 	private final SecureRandom secureRandom = new SecureRandom();
 
 	public TradeWorkflowService(JdbcTemplate jdbcTemplate, OrderMapper orderMapper,
 			OrderStatusLogMapper orderStatusLogMapper, ChatMapper chatMapper,
-			ChatMessageMapper chatMessageMapper, PaymentService paymentService) {
+			ChatMessageMapper chatMessageMapper, PaymentService paymentService, MessageService messageService) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.orderMapper = orderMapper;
 		this.orderStatusLogMapper = orderStatusLogMapper;
 		this.chatMapper = chatMapper;
 		this.chatMessageMapper = chatMessageMapper;
 		this.paymentService = paymentService;
+		this.messageService = messageService;
 	}
 
 	@Transactional
@@ -71,6 +73,8 @@ public class TradeWorkflowService {
 		order.setBuyerMessage(optionalText(body.get("message"), ""));
 		orderMapper.insert(order);
 		writeOrderLog(order.getId(), null, "PENDING", buyerId, "USER", "创建订单");
+		messageService.createNotification(sellerId, "ORDER", "收到新的商品预约",
+				displayName(buyerId) + " 预约了你的商品「" + item.get("title") + "」，请在个人中心的我的订单里处理。");
 		return orderDetailForUser(order.getId(), buyerId);
 	}
 
@@ -130,6 +134,7 @@ public class TradeWorkflowService {
 		}
 		transition(order, "ACCEPTED", sellerId, "卖家接单", "PENDING");
 		jdbcTemplate.update("UPDATE items SET status = 'RESERVED' WHERE id = ? AND status = 'ON_SALE'", order.getItemId());
+		messageService.pushOrderNotification(order, "订单已接单", "订单 " + order.getOrderNo() + " 已由卖家接单。");
 		return true;
 	}
 
@@ -149,6 +154,7 @@ public class TradeWorkflowService {
 		orderMapper.updateById(order);
 		writeOrderLog(order.getId(), fromStatus, "CANCELLED", userId, "USER", order.getCancelReason());
 		jdbcTemplate.update("UPDATE items SET status = 'ON_SALE' WHERE id = ? AND status <> 'SOLD'", order.getItemId());
+		messageService.pushOrderNotification(order, "订单已取消", "订单 " + order.getOrderNo() + " 已取消：" + order.getCancelReason());
 		return true;
 	}
 
@@ -165,6 +171,7 @@ public class TradeWorkflowService {
 		orderMapper.updateById(order);
 		writeOrderLog(order.getId(), fromStatus, "COMPLETED", userId, "USER", "完成交易");
 		jdbcTemplate.update("UPDATE items SET status = 'SOLD' WHERE id = ?", order.getItemId());
+		messageService.pushOrderNotification(order, "订单已完成", "订单 " + order.getOrderNo() + " 已完成，买家可对卖家评价。");
 		return true;
 	}
 
@@ -182,6 +189,7 @@ public class TradeWorkflowService {
 		if (!"PAYING".equals(order.getStatus())) {
 			transition(order, "PAYING", userId, "创建支付单", "PENDING", "ACCEPTED");
 		}
+		messageService.pushOrderNotification(order, "订单进入支付中", "订单 " + order.getOrderNo() + " 已创建支付单。");
 		return payment;
 	}
 
@@ -273,7 +281,10 @@ public class TradeWorkflowService {
 		chat.setLastMessage(lastMessageText(message));
 		chat.setLastMessageAt(LocalDateTime.now());
 		chatMapper.updateById(chat);
-		return messageRow(message);
+		Map<String, Object> row = messageRow(message);
+		messageService.pushChatMessage(chat.getBuyerId(), row);
+		messageService.pushChatMessage(chat.getSellerId(), row);
+		return row;
 	}
 
 	public List<Map<String, Object>> wantedPosts() {
@@ -394,6 +405,7 @@ public class TradeWorkflowService {
 				"coverUrl", rs.getString("cover_url") == null ? "" : rs.getString("cover_url")));
 		row.put("buyer", userRow(rs.getLong("buyer_id")));
 		row.put("seller", userRow(rs.getLong("seller_id")));
+		row.put("reviewedByBuyer", hasReview(rs.getLong("id"), rs.getLong("buyer_id")));
 		row.put("createdAt", rs.getTimestamp("created_at").toLocalDateTime().toString());
 		row.put("updatedAt", rs.getTimestamp("updated_at").toLocalDateTime().toString());
 		return row;
@@ -440,6 +452,20 @@ public class TradeWorkflowService {
 			return Map.of("userId", userId, "nickname", "用户" + userId, "avatarUrl", "", "campus", "");
 		}
 		return rows.get(0);
+	}
+
+	private String displayName(Long userId) {
+		Object nickname = userRow(userId).get("nickname");
+		return nickname != null && StringUtils.hasText(String.valueOf(nickname)) ? String.valueOf(nickname) : "用户" + userId;
+	}
+
+	private boolean hasReview(Long orderId, Long reviewerId) {
+		Long count = jdbcTemplate.queryForObject("""
+				SELECT COUNT(*)
+				FROM reviews
+				WHERE order_id = ? AND reviewer_id = ?
+				""", Long.class, orderId, reviewerId);
+		return count != null && count > 0;
 	}
 
 	private boolean containsSensitive(String content) {

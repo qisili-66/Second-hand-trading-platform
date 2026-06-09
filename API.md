@@ -300,13 +300,13 @@ GET /api/exchanges/{exchangeId}/matches
 
 `GET /api/users/me/notifications`
 
-需要 `USER` JWT。返回当前用户的 `notifications` 系统通知。管理员下架、重新上架或删除用户商品时会通知该商品卖家；管理员发布平台公告时会按公告范围通知目标普通用户。
+需要 `USER` JWT。返回当前用户的 `notifications` 通知。管理员下架、重新上架或删除用户商品时会通知该商品卖家；管理员发布平台公告时会按公告范围通知目标普通用户；买家预约商品、订单状态变化会向买卖双方写入 `type = 'ORDER'` 通知；商品留言会向卖家写入 `type = 'COMMENT'` 通知。已登录用户建立 WebSocket 连接后，也会实时收到对应通知。
 
 ### 用户评价
 
 `GET /api/users/{userId}/reviews`
 
-需要 `USER` JWT。当前评价表为空，返回空分页。
+需要 `USER` JWT。返回用户作为卖家收到的订单评价分页包装，读取 `reviews` 表。返回字段包含 `reviewId`、`orderId`、`orderNo`、`reviewerId`、`targetUserId`、`rating`、`content`、`createdAt`、`reviewer`、`targetUser`、`item`。
 
 ## 分类接口
 
@@ -579,7 +579,60 @@ PENDING/ACCEPTED/PAYING/PAID -> CANCELLED
 - 只有卖家可以接单。
 - 买家或卖家都可以取消自己的订单，取消后未售出的商品恢复为 `ON_SALE`。
 - 订单完成后商品改为 `SOLD`。
-- 订单评价 `POST /api/orders/{orderId}/reviews` 当前仍是成功占位。
+- 订单完成后，买家可以通过 `POST /api/orders/{orderId}/reviews` 对卖家评价；同一订单同一买家只能评价一次。
+
+## 评价接口
+
+### 创建评价
+
+```http
+POST /api/reviews
+POST /api/orders/{orderId}/reviews
+```
+
+需要 `USER` JWT。两种创建方式都由后端根据订单推导 `target_user_id = orders.seller_id`，前端不能指定任意被评价用户。
+
+请求：
+
+```json
+{
+  "orderId": 12,
+  "rating": 5,
+  "content": "商品和描述一致，沟通顺畅"
+}
+```
+
+业务规则：
+
+- 只有已完成订单的买家可以评价该订单卖家。
+- 每个订单每个买家只能评价一次。
+- `rating` 必须为 1-5 星。
+- `content` 最长 500 字。
+- 评价成功写入 `reviews`，并自动更新卖家 `users.credit_score`。
+
+信用分规则：
+
+- 4-5 星：`+5`
+- 3 星：`0`
+- 1-2 星：`-10`
+- 范围限制：`0 - 200`，后端使用 `GREATEST(0, LEAST(credit_score + ?, 200))`。
+
+### 用户评价列表
+
+```http
+GET /api/reviews/user/{userId}
+GET /api/users/{userId}/reviews
+```
+
+返回用户作为卖家收到的评价列表；`GET /api/users/{userId}/reviews` 为分页包装兼容入口。
+
+### 用户评分统计
+
+```http
+GET /api/reviews/user/{userId}/stats
+```
+
+返回平均分、评价数、各星级数量和当前信用分。
 
 ### 创建支付单
 
@@ -721,6 +774,43 @@ app:
 - 如果配置的是平台支付宝应用或微信商户号，钱进入平台商户绑定的结算账户。
 - 如果要钱直接进入卖家账户，需要卖家直连商户或分账能力。
 - 平台代收模式下，还需要补资金台账、分账、提现、退款、对账和回调验签。
+
+## WebSocket 实时推送
+
+### 连接地址
+
+```text
+/ws
+```
+
+基于 SockJS + STOMP。前端连接时必须在 STOMP CONNECT headers 携带：
+
+```text
+Authorization: Bearer <jwt>
+```
+
+只接受普通用户 JWT。管理员后台继续使用 REST 接口。
+
+### 允许订阅
+
+```text
+/user/queue/notifications
+/user/queue/messages
+/topic/broadcast
+```
+
+安全规则：
+
+- `CONNECT` 必须携带有效 `USER` JWT。
+- 只允许订阅当前用户队列和平台广播主题。
+- 客户端 `SEND` 已禁用，聊天、通知、订单等写操作必须走 REST 接口，避免绕过 REST 鉴权。
+
+推送类型：
+
+- 订单通知：预约、接单、取消、完成、支付成功等订单状态变化推送给买卖双方。
+- 聊天消息：新消息推送给会话买卖双方。
+- 系统通知：管理员商品处理、公告发布、评价通知等推送给目标用户。
+- 广播消息：公告发布时向 `/topic/broadcast` 推送。
 
 ## 求购与置换接口
 
@@ -978,9 +1068,10 @@ DELETE /api/admin/notices/{noticeId}
 - 后台商品下架真实更新 `items.status = 'REMOVED'`。
 - 后台商品重新上架真实更新 `items.status = 'ON_SALE'`。
 - 后台商品删除真实软删除 `items.deleted = 1`。
-- 后台商品下架、重新上架和删除会向商品卖家写入 `notifications.type = 'SYSTEM'` 的系统通知。
+- 后台商品下架、重新上架和删除会向商品卖家写入 `notifications.type = 'SYSTEM'` 的系统通知，并通过 WebSocket 推送。
+- 买家预约商品和订单状态变化会向买卖双方写入 `notifications.type = 'ORDER'`；用户给商品留言会向卖家写入 `notifications.type = 'COMMENT'`。
 - 后台新增商品需要传 `sellerId`，后续买家咨询会按该商品 `seller_id` 与真实卖家建聊。
-- 后台公告新增、编辑、发布和删除真实写入 `announcements`；公告发布时会按全平台或指定校区向普通用户生成系统通知。
+- 后台公告新增、编辑、发布和删除真实写入 `announcements`；公告发布时会按全平台或指定校区向普通用户生成系统通知，并向 `/topic/broadcast` 广播。
 - 用户禁用、分类管理、举报/纠纷处理、系统设置等仍有部分占位。
 
 ## 服务层拆分

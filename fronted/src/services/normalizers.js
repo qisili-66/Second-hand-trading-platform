@@ -70,6 +70,8 @@ export function normalizeComment(comment = {}) {
 
 export function normalizeOrder(order = {}) {
   const item = order.item || {}
+  const buyer = order.buyer || {}
+  const seller = order.seller || {}
   return {
     id: order.orderId || order.id,
     orderId: order.orderId || order.id,
@@ -80,17 +82,46 @@ export function normalizeOrder(order = {}) {
     tradeCode: order.tradeCode || '',
     amount: numberValue(item.price ?? order.amount),
     product: {
-      id: item.itemId,
+      id: item.itemId || order.itemId,
       title: item.title || '',
       image: item.coverUrl || fallbackImage,
       campus: item.campus || '',
       dorm: '',
     },
-    buyer: order.buyer || {},
-    seller: order.seller || {},
+    buyer,
+    seller,
+    buyerId: buyer.userId ?? order.buyerId,
+    sellerId: seller.userId ?? order.sellerId,
+    buyerName: buyer.nickname || (buyer.userId ? `用户${buyer.userId}` : ''),
+    sellerName: seller.nickname || (seller.userId ? `用户${seller.userId}` : ''),
+    reviewedByBuyer: Boolean(order.reviewedByBuyer),
     payments: order.payments || [],
     statusLogs: order.statusLogs || [],
     createdAt: dateText(order.createdAt),
+  }
+}
+
+export function normalizeReview(review = {}) {
+  const item = review.item || {}
+  const reviewer = review.reviewer || review.user || {}
+  const targetUser = review.targetUser || {}
+  return {
+    id: review.reviewId || review.commentId || review.id,
+    orderId: review.orderId,
+    orderNo: review.orderNo || '',
+    rating: numberValue(review.rating),
+    content: review.content || '',
+    createdAt: dateText(review.createdAt),
+    reviewerId: review.reviewerId || reviewer.userId || review.userId,
+    reviewerName: review.reviewerName || reviewer.nickname || (review.reviewerId ? `用户${review.reviewerId}` : ''),
+    targetUserId: review.targetUserId || targetUser.userId || review.sellerId,
+    targetUserName: review.targetUserName || targetUser.nickname || review.sellerName || '',
+    relation: review.relation || '',
+    item: {
+      id: review.itemId || item.itemId,
+      title: review.itemTitle || item.title || '',
+      image: review.coverUrl || item.coverUrl || fallbackImage,
+    },
   }
 }
 
