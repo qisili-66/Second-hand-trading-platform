@@ -1,55 +1,119 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { sensitiveWords } from '../../data/adminMock'
+import { adminApi } from '../../services/api'
 
-const words = ref([...sensitiveWords])
+const words = ref([])
 const newWord = ref('')
+const loading = ref(false)
+const savingPayment = ref(false)
+const savingRules = ref(false)
 
 const payment = reactive({
-  wechatAppId: 'wx-campus-demo',
-  alipayAppId: 'alipay-campus-demo',
-  campusCardMerchant: 'CAMPUS-2026',
+  wechatAppId: '',
+  alipayAppId: '',
+  campusCardMerchant: '',
 })
 
 const rules = reactive({
   maxImages: 9,
   disputeDays: 3,
   creditDeduction: 10,
-  tradeTip: '建议优先同校区面交，贵重数码商品需现场验机。',
+  tradeTip: '',
 })
 
-function addWord() {
-  if (!newWord.value.trim()) {
-    ElMessage.warning('请输入敏感词')
+function parseJson(value, fallback = {}) {
+  try {
+    return value ? JSON.parse(value) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+async function loadSettings() {
+  loading.value = true
+  try {
+    const response = await adminApi.settings()
+    const data = response.data || {}
+    words.value = Array.isArray(data.sensitiveWords) ? data.sensitiveWords : []
+    const wechat = parseJson(data.payment_wechat)
+    const alipay = parseJson(data.payment_alipay)
+    const campusCard = parseJson(data.payment_campus_card)
+    const tradeRules = parseJson(data.trade_rules)
+    payment.wechatAppId = wechat.appId || ''
+    payment.alipayAppId = alipay.appId || ''
+    payment.campusCardMerchant = campusCard.merchant || ''
+    rules.maxImages = Number(tradeRules.maxImages) || 9
+    rules.disputeDays = Number(tradeRules.disputeDays) || 3
+    rules.creditDeduction = Number(tradeRules.creditDeduction) || 10
+    rules.tradeTip = tradeRules.tradeTip || ''
+  } catch (error) {
+    ElMessage.error(error.message || 'Settings load failed')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function saveSettings(payload, successText) {
+  await adminApi.updateSettings(payload)
+  ElMessage.success(successText)
+  await loadSettings()
+}
+
+async function addWord() {
+  const word = newWord.value.trim()
+  if (!word) {
+    ElMessage.warning('Sensitive word is required')
     return
   }
-  words.value.push(newWord.value.trim())
-  newWord.value = ''
-  ElMessage.success('敏感词已新增')
+  try {
+    await saveSettings({ sensitiveWords: [...new Set([...words.value, word])] }, 'Sensitive word added')
+    newWord.value = ''
+  } catch (error) {
+    ElMessage.error(error.message || 'Sensitive word add failed')
+  }
 }
 
-function removeWord(word) {
-  words.value = words.value.filter((item) => item !== word)
-  ElMessage.success(`敏感词「${word}」已删除`)
+async function removeWord(word) {
+  try {
+    await saveSettings({ sensitiveWords: words.value.filter((item) => item !== word) }, 'Sensitive word deleted')
+  } catch (error) {
+    ElMessage.error(error.message || 'Sensitive word delete failed')
+  }
 }
 
-function savePayment() {
-  ElMessage.success('支付参数已保存')
+async function savePayment() {
+  savingPayment.value = true
+  try {
+    await saveSettings({ payment: { ...payment } }, 'Payment settings saved')
+  } catch (error) {
+    ElMessage.error(error.message || 'Payment settings save failed')
+  } finally {
+    savingPayment.value = false
+  }
 }
 
-function saveRules() {
-  ElMessage.success('交易规则已保存')
+async function saveRules() {
+  savingRules.value = true
+  try {
+    await saveSettings({ rules: { ...rules } }, 'Trade rules saved')
+  } catch (error) {
+    ElMessage.error(error.message || 'Trade rules save failed')
+  } finally {
+    savingRules.value = false
+  }
 }
+
+onMounted(loadSettings)
 </script>
 
 <template>
-  <div class="admin-page settings-grid">
+  <div v-loading="loading" class="admin-page settings-grid">
     <el-card shadow="never">
-      <template #header>敏感词库配置</template>
+      <template #header>Sensitive Words</template>
       <div class="word-add-row">
-        <el-input v-model="newWord" placeholder="新增 IM 敏感词" />
-        <el-button type="primary" @click="addWord">新增</el-button>
+        <el-input v-model="newWord" placeholder="New sensitive word" />
+        <el-button type="primary" @click="addWord">Add</el-button>
       </div>
       <div class="tag-stack">
         <el-tag v-for="word in words" :key="word" closable type="warning" @close="removeWord(word)">
@@ -59,39 +123,39 @@ function saveRules() {
     </el-card>
 
     <el-card shadow="never">
-      <template #header>支付配置</template>
+      <template #header>Payment Settings</template>
       <el-form label-position="top">
-        <el-form-item label="微信支付 AppID">
+        <el-form-item label="Wechat AppID">
           <el-input v-model="payment.wechatAppId" />
         </el-form-item>
-        <el-form-item label="支付宝 AppID">
+        <el-form-item label="Alipay AppID">
           <el-input v-model="payment.alipayAppId" />
         </el-form-item>
-        <el-form-item label="校园卡商户号">
+        <el-form-item label="Campus Card Merchant">
           <el-input v-model="payment.campusCardMerchant" />
         </el-form-item>
-        <el-button type="primary" @click="savePayment">保存支付参数</el-button>
+        <el-button type="primary" :loading="savingPayment" @click="savePayment">Save Payment</el-button>
       </el-form>
     </el-card>
 
     <el-card shadow="never" class="settings-wide">
-      <template #header>平台交易规则配置</template>
+      <template #header>Trade Rules</template>
       <el-form label-position="top">
         <div class="admin-filter-grid">
-          <el-form-item label="商品最多图片数">
+          <el-form-item label="Max Images">
             <el-input-number v-model="rules.maxImages" :min="1" :max="12" />
           </el-form-item>
-          <el-form-item label="纠纷可申请天数">
+          <el-form-item label="Dispute Days">
             <el-input-number v-model="rules.disputeDays" :min="1" :max="15" />
           </el-form-item>
-          <el-form-item label="违规默认扣分">
+          <el-form-item label="Credit Deduction">
             <el-input-number v-model="rules.creditDeduction" :min="1" :max="100" />
           </el-form-item>
         </div>
-        <el-form-item label="交易安全提示">
+        <el-form-item label="Trade Tip">
           <el-input v-model="rules.tradeTip" type="textarea" :rows="4" />
         </el-form-item>
-        <el-button type="primary" @click="saveRules">保存交易规则</el-button>
+        <el-button type="primary" :loading="savingRules" @click="saveRules">Save Rules</el-button>
       </el-form>
     </el-card>
   </div>

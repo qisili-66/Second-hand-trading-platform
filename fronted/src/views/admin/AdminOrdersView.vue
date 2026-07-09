@@ -1,8 +1,13 @@
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { adminDisputes, adminOrders } from '../../data/adminMock'
+import { adminApi } from '../../services/api'
+import { normalizeOrder } from '../../services/normalizers'
 
+const orders = ref([])
+const disputes = ref([])
+const loading = ref(false)
+const disputeLoading = ref(false)
 const filters = reactive({
   status: '',
   mode: '',
@@ -10,9 +15,9 @@ const filters = reactive({
 })
 
 const filteredOrders = computed(() =>
-  adminOrders.filter((order) => {
+  orders.value.filter((order) => {
     const statusMatched = !filters.status || order.status === filters.status
-    const modeMatched = !filters.mode || order.mode === filters.mode
+    const modeMatched = !filters.mode || order.tradeMode === filters.mode
     const timeMatched =
       !Array.isArray(filters.time) ||
       filters.time.length !== 2 ||
@@ -22,15 +27,73 @@ const filteredOrders = computed(() =>
   }),
 )
 
+function normalizeDispute(row = {}) {
+  return {
+    id: row.disputeId || row.id,
+    disputeNo: row.disputeNo || '',
+    orderId: row.orderId || '',
+    applicantId: row.applicantId || '',
+    reason: row.reason || '',
+    status: row.status || 'PENDING',
+    amount: row.amount || '',
+    createdAt: String(row.createdAt || '').replace('T', ' ').slice(0, 16),
+    resultRemark: row.resultRemark || '',
+  }
+}
+
+async function loadOrders() {
+  loading.value = true
+  try {
+    const response = await adminApi.orders({ page: 1, pageSize: 100 })
+    orders.value = (response.data?.list || []).map(normalizeOrder)
+  } catch (error) {
+    orders.value = []
+    ElMessage.error(error.message || 'Order list load failed')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadDisputes() {
+  disputeLoading.value = true
+  try {
+    const response = await adminApi.disputes({ page: 1, pageSize: 100 })
+    disputes.value = (response.data?.list || []).map(normalizeDispute)
+  } catch (error) {
+    disputes.value = []
+    ElMessage.error(error.message || 'Dispute list load failed')
+  } finally {
+    disputeLoading.value = false
+  }
+}
+
 function resolveDispute(row, result) {
-  ElMessageBox.confirm(`确认对纠纷 ${row.id} 执行「${result}」？`, '管理员仲裁', {
-    confirmButtonText: '确认',
-    cancelButtonText: '取消',
-    type: result === '同意退款' ? 'warning' : 'info',
-  }).then(() => {
-    ElMessage.success(`仲裁结果已提交：${result}`)
+  ElMessageBox.confirm(`Confirm dispute ${row.id}: ${result}?`, 'Resolve dispute', {
+    confirmButtonText: 'Confirm',
+    cancelButtonText: 'Cancel',
+    type: result === 'REFUND' ? 'warning' : 'info',
+  }).then(async () => {
+    try {
+      await adminApi.resolveDispute(row.id, { result, remark: result })
+      ElMessage.success('Dispute resolved')
+      loadDisputes()
+    } catch (error) {
+      ElMessage.error(error.message || 'Dispute resolve failed')
+    }
   }).catch(() => {})
 }
+
+function orderStatusType(status) {
+  if (status === 'COMPLETED' || status === 'PAID') return 'success'
+  if (status === 'CANCELLED') return 'info'
+  if (status === 'PAYING') return 'warning'
+  return 'primary'
+}
+
+onMounted(() => {
+  loadOrders()
+  loadDisputes()
+})
 </script>
 
 <template>
@@ -38,23 +101,24 @@ function resolveDispute(row, result) {
     <el-card shadow="never" class="admin-filter-card">
       <el-form label-position="top">
         <div class="admin-filter-grid">
-          <el-form-item label="订单状态">
-            <el-select v-model="filters.status" clearable placeholder="全部状态">
-              <el-option label="待预订" value="待预订" />
-              <el-option label="待面交" value="待面交" />
-              <el-option label="待收货" value="待收货" />
-              <el-option label="已完成" value="已完成" />
-              <el-option label="纠纷中" value="纠纷中" />
+          <el-form-item label="Order Status">
+            <el-select v-model="filters.status" clearable placeholder="All status">
+              <el-option label="Pending" value="PENDING" />
+              <el-option label="Accepted" value="ACCEPTED" />
+              <el-option label="Paying" value="PAYING" />
+              <el-option label="Paid" value="PAID" />
+              <el-option label="Completed" value="COMPLETED" />
+              <el-option label="Cancelled" value="CANCELLED" />
             </el-select>
           </el-form-item>
-          <el-form-item label="交易模式">
-            <el-select v-model="filters.mode" clearable placeholder="全部模式">
-              <el-option label="校内面交" value="校内面交" />
-              <el-option label="线上担保" value="线上担保" />
+          <el-form-item label="Trade Mode">
+            <el-select v-model="filters.mode" clearable placeholder="All modes">
+              <el-option label="Offline" value="OFFLINE" />
+              <el-option label="Escrow" value="ESCROW" />
             </el-select>
           </el-form-item>
-          <el-form-item label="时间">
-            <el-date-picker v-model="filters.time" type="daterange" start-placeholder="开始日期" end-placeholder="结束日期" />
+          <el-form-item label="Date Range">
+            <el-date-picker v-model="filters.time" type="daterange" start-placeholder="Start" end-placeholder="End" />
           </el-form-item>
         </div>
       </el-form>
@@ -62,40 +126,39 @@ function resolveDispute(row, result) {
 
     <el-card shadow="never">
       <el-tabs>
-        <el-tab-pane label="全平台订单">
-          <el-table :data="filteredOrders" stripe>
-            <el-table-column prop="id" label="订单号" min-width="160" />
-            <el-table-column prop="product" label="商品" min-width="220" />
-            <el-table-column prop="buyer" label="买家" min-width="100" />
-            <el-table-column prop="seller" label="卖家" min-width="120" />
-            <el-table-column prop="status" label="状态" min-width="110">
+        <el-tab-pane label="Orders">
+          <el-table v-loading="loading" :data="filteredOrders" stripe>
+            <el-table-column prop="orderNo" label="Order No" min-width="170" />
+            <el-table-column prop="product.title" label="Item" min-width="220" />
+            <el-table-column prop="buyerName" label="Buyer" min-width="120" />
+            <el-table-column prop="sellerName" label="Seller" min-width="120" />
+            <el-table-column prop="status" label="Status" min-width="110">
               <template #default="{ row }">
-                <el-tag :type="row.status === '纠纷中' ? 'danger' : 'warning'">{{ row.status }}</el-tag>
+                <el-tag :type="orderStatusType(row.status)">{{ row.status }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="mode" label="交易模式" min-width="120" />
-            <el-table-column prop="amount" label="金额" min-width="100">
-              <template #default="{ row }">￥{{ row.amount }}</template>
-            </el-table-column>
-            <el-table-column prop="createdAt" label="创建时间" min-width="170" />
+            <el-table-column prop="tradeMode" label="Mode" min-width="110" />
+            <el-table-column prop="amount" label="Amount" min-width="100" />
+            <el-table-column prop="createdAt" label="Created At" min-width="170" />
           </el-table>
         </el-tab-pane>
 
-        <el-tab-pane label="纠纷订单">
-          <el-table :data="adminDisputes" stripe>
-            <el-table-column prop="id" label="纠纷编号" min-width="160" />
-            <el-table-column prop="orderId" label="订单号" min-width="160" />
-            <el-table-column prop="buyer" label="买家" min-width="100" />
-            <el-table-column prop="seller" label="卖家" min-width="120" />
-            <el-table-column prop="reason" label="纠纷原因" min-width="260" />
-            <el-table-column prop="status" label="状态" min-width="110" />
-            <el-table-column prop="amount" label="金额" min-width="100">
-              <template #default="{ row }">￥{{ row.amount }}</template>
-            </el-table-column>
-            <el-table-column label="管理员仲裁" fixed="right" width="220">
+        <el-tab-pane label="Disputes">
+          <el-table v-loading="disputeLoading" :data="disputes" stripe>
+            <el-table-column prop="disputeNo" label="Dispute No" min-width="160" />
+            <el-table-column prop="orderId" label="Order ID" min-width="120" />
+            <el-table-column prop="applicantId" label="Applicant" min-width="110" />
+            <el-table-column prop="reason" label="Reason" min-width="260" />
+            <el-table-column prop="status" label="Status" min-width="110" />
+            <el-table-column prop="resultRemark" label="Result" min-width="180" />
+            <el-table-column label="Actions" fixed="right" width="220">
               <template #default="{ row }">
-                <el-button link type="success" @click="resolveDispute(row, '同意退款')">同意退款</el-button>
-                <el-button link type="danger" @click="resolveDispute(row, '驳回申诉')">驳回申诉</el-button>
+                <el-button link type="success" :disabled="row.status === 'RESOLVED'" @click="resolveDispute(row, 'REFUND')">
+                  Refund
+                </el-button>
+                <el-button link type="danger" :disabled="row.status === 'RESOLVED'" @click="resolveDispute(row, 'REJECT')">
+                  Reject
+                </el-button>
               </template>
             </el-table-column>
           </el-table>

@@ -1,13 +1,14 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { campuses, categories, conditions } from '../../data/mock'
+import { campuses, conditions } from '../../data/mock'
 import { adminApi } from '../../services/api'
 import { normalizeItemPage } from '../../services/normalizers'
 
 const selectedRows = ref([])
 const products = ref([])
 const users = ref([])
+const categoryOptions = ref([])
 const loading = ref(false)
 const creating = ref(false)
 const createDialog = ref(false)
@@ -67,6 +68,16 @@ async function loadUsers() {
     users.value = response.data?.list || []
   } catch (error) {
     users.value = []
+    console.error(error)
+  }
+}
+
+async function loadCategories() {
+  try {
+    const response = await adminApi.categories()
+    categoryOptions.value = (response.data || []).map((category) => category.name).filter(Boolean)
+  } catch (error) {
+    categoryOptions.value = []
     console.error(error)
   }
 }
@@ -213,6 +224,7 @@ function statusText(status) {
 onMounted(() => {
   loadItems()
   loadUsers()
+  loadCategories()
 })
 </script>
 
@@ -223,7 +235,7 @@ onMounted(() => {
         <div class="admin-filter-grid">
           <el-form-item label="分类">
             <el-select v-model="filters.category" clearable placeholder="全部分类">
-              <el-option v-for="category in categories" :key="category" :label="category" :value="category" />
+              <el-option v-for="category in categoryOptions" :key="category" :label="category" :value="category" />
             </el-select>
           </el-form-item>
           <el-form-item label="校区">
@@ -314,7 +326,7 @@ onMounted(() => {
           </el-form-item>
           <el-form-item label="分类">
             <el-select v-model="createForm.category" placeholder="选择分类">
-              <el-option v-for="category in categories" :key="category" :label="category" :value="category" />
+              <el-option v-for="category in categoryOptions" :key="category" :label="category" :value="category" />
             </el-select>
           </el-form-item>
           <el-form-item label="校区">

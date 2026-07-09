@@ -1,6 +1,7 @@
 package com.example.Second_hand.trading.platform.service;
 
 import java.math.BigDecimal;
+import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -11,6 +12,8 @@ import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -150,6 +153,63 @@ public class ItemService {
 		}
 		ensureActiveUser(sellerId);
 		return createItem(sellerId, body);
+	}
+
+	@Transactional
+	public boolean updateItem(Long sellerId, Integer itemId, Map<String, Object> body) {
+		ItemEntity item = requireOwnedItem(sellerId, itemId);
+		if ("SOLD".equals(item.getStatus())) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Sold items cannot be edited");
+		}
+
+		Long categoryId = optionalCategoryId(body);
+		if (categoryId != null) {
+			item.setCategoryId(categoryId);
+		}
+		String title = optionalText(body, "title");
+		if (StringUtils.hasText(title)) {
+			item.setTitle(title);
+		}
+		String description = optionalText(body, "description", "desc");
+		if (StringUtils.hasText(description)) {
+			item.setDescription(description);
+		}
+		BigDecimal price = optionalMoney(body, "price");
+		if (price != null) {
+			item.setPrice(price);
+		}
+		BigDecimal originalPrice = optionalMoney(body, "originalPrice");
+		if (originalPrice != null) {
+			item.setOriginalPrice(originalPrice);
+		}
+		String condition = optionalText(body, "condition");
+		if (StringUtils.hasText(condition)) {
+			item.setConditionLevel(conditionCode(condition));
+		}
+		String campus = optionalText(body, "campus");
+		if (StringUtils.hasText(campus)) {
+			item.setCampus(campus);
+		}
+		String dormitory = optionalText(body, "dormitory", "dorm");
+		if (StringUtils.hasText(dormitory)) {
+			item.setDormitory(dormitory);
+		}
+		String tradePlace = optionalText(body, "tradePlace");
+		if (StringUtils.hasText(tradePlace)) {
+			item.setTradePlace(tradePlace);
+		}
+		if (body != null && body.containsKey("tradeModes")) {
+			item.setTradeModes(tradeModes(body.get("tradeModes")));
+		}
+		if (body != null && body.containsKey("swapSupported")) {
+			item.setSwapSupported(boolValue(body.get("swapSupported")) ? 1 : 0);
+		}
+		itemMapper.updateById(item);
+
+		if (hasAnyKey(body, "imageUrls", "images", "coverUrl", "imageUrl")) {
+			replaceImages(item.getId(), sellerId, imageUrls(body));
+		}
+		return true;
 	}
 
 	@Transactional
@@ -333,6 +393,49 @@ public class ItemService {
 		return commentRow(comment);
 	}
 
+	@Transactional
+	public Map<String, Object> createReport(Long userId, Integer itemId, Map<String, Object> body) {
+		if (userId == null) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Please login first");
+		}
+		ItemEntity item = requireAnyItem(itemId);
+		if (item.getSellerId().equals(userId)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot report your own item");
+		}
+		String content = requiredText(body, "content", "Report reason", "reason");
+		if (content.length() > 1000) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Report reason cannot exceed 1000 characters");
+		}
+		String reportType = optionalText(body, "reportType", "type");
+		if (!StringUtils.hasText(reportType)) {
+			reportType = "ITEM";
+		}
+
+		KeyHolder keyHolder = new GeneratedKeyHolder();
+		String finalReportType = reportType;
+		jdbcTemplate.update(connection -> {
+			var statement = connection.prepareStatement("""
+					INSERT INTO reports (reporter_id, target_type, target_id, report_type, content, status)
+					VALUES (?, 'ITEM', ?, ?, ?, 'PENDING')
+					""", Statement.RETURN_GENERATED_KEYS);
+			statement.setLong(1, userId);
+			statement.setLong(2, itemId.longValue());
+			statement.setString(3, finalReportType);
+			statement.setString(4, content);
+			return statement;
+		}, keyHolder);
+		Number key = keyHolder.getKey();
+		if (key == null) {
+			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Report create failed");
+		}
+		Map<String, Object> row = new LinkedHashMap<>();
+		row.put("reportId", key.longValue());
+		row.put("targetType", "ITEM");
+		row.put("targetId", itemId);
+		row.put("status", "PENDING");
+		return row;
+	}
+
 	private LambdaQueryWrapper<ItemEntity> itemWrapper(ItemSearchCriteria criteria, boolean publicOnly) {
 		LambdaQueryWrapper<ItemEntity> wrapper = Wrappers.lambdaQuery(ItemEntity.class)
 				.eq(ItemEntity::getDeleted, 0);
@@ -495,6 +598,26 @@ public class ItemService {
 		return ids.get(0);
 	}
 
+	private Long optionalCategoryId(Map<String, Object> body) {
+		if (body == null) {
+			return null;
+		}
+		Long categoryId = optionalLong(body.get("categoryId"));
+		if (categoryId != null) {
+			return categoryId;
+		}
+		String category = optionalText(body, "category");
+		if (!StringUtils.hasText(category)) {
+			return null;
+		}
+		List<Long> ids = jdbcTemplate.queryForList("SELECT id FROM categories WHERE name = ? AND enabled = 1 LIMIT 1",
+				Long.class, category);
+		if (ids.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category does not exist");
+		}
+		return ids.get(0);
+	}
+
 	private void requireItem(Integer itemId) {
 		Long count = itemMapper.selectCount(Wrappers.lambdaQuery(ItemEntity.class)
 				.eq(ItemEntity::getId, itemId)
@@ -579,6 +702,30 @@ public class ItemService {
 		return urls.stream().filter(StringUtils::hasText).distinct().toList();
 	}
 
+	private void replaceImages(Long itemId, Long ownerId, List<String> urls) {
+		itemImageMapper.delete(Wrappers.lambdaQuery(ItemImageEntity.class)
+				.eq(ItemImageEntity::getItemId, itemId));
+		int sortOrder = 0;
+		for (String url : urls) {
+			ItemImageEntity image = new ItemImageEntity();
+			image.setItemId(itemId);
+			image.setImageUrl(url);
+			image.setSortOrder(sortOrder);
+			itemImageMapper.insert(image);
+
+			FileEntity file = new FileEntity();
+			file.setOwnerId(ownerId);
+			file.setFileType("IMAGE");
+			file.setOriginalName("item-" + itemId + "-" + sortOrder + ".jpg");
+			file.setStorageKey(url);
+			file.setUrl(url);
+			file.setSizeBytes(0L);
+			file.setContentType("image/jpeg");
+			fileMapper.insert(file);
+			sortOrder++;
+		}
+	}
+
 	private void collectUrls(List<String> urls, Object value) {
 		if (value instanceof List<?> list) {
 			list.forEach(item -> collectUrls(urls, item));
@@ -613,6 +760,9 @@ public class ItemService {
 	}
 
 	private String optionalText(Map<String, Object> body, String... keys) {
+		if (body == null) {
+			return "";
+		}
 		for (String key : keys) {
 			Object value = body.get(key);
 			if (value instanceof List<?> list) {
@@ -630,6 +780,18 @@ public class ItemService {
 		return "";
 	}
 
+	private boolean hasAnyKey(Map<String, Object> body, String... keys) {
+		if (body == null) {
+			return false;
+		}
+		for (String key : keys) {
+			if (body.containsKey(key)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private BigDecimal requiredMoney(Map<String, Object> body, String key, String label) {
 		BigDecimal value = optionalMoney(body, key);
 		if (value == null) {
@@ -639,6 +801,9 @@ public class ItemService {
 	}
 
 	private BigDecimal optionalMoney(Map<String, Object> body, String key) {
+		if (body == null) {
+			return null;
+		}
 		Object value = body.get(key);
 		if (value == null || !StringUtils.hasText(String.valueOf(value))) {
 			return null;

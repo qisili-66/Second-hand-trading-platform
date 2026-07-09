@@ -34,8 +34,10 @@ public class UserController {
 	}
 
 	@PutMapping("/me")
-	public ApiResponse<Boolean> updateMe(@RequestBody Map<String, Object> body) {
-		return ApiResponse.success(true);
+	public ApiResponse<Map<String, Object>> updateMe(
+			@RequestAttribute("authId") Long authId,
+			@RequestBody Map<String, Object> body) {
+		return ApiResponse.success(userService.updateMe(authId, body));
 	}
 
 	@GetMapping("/me/items")

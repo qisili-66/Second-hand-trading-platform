@@ -14,7 +14,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://127.0.0.1:3306/second_hand_trade?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
-    password: root
+    password: b8t{TUNu|7]A
 
   sql:
     init:
@@ -27,19 +27,19 @@ spring:
 
 app:
   upload:
-    dir: uploads
+    dir: /opt/app/uploads
   jwt:
-    secret: second-hand-trading-platform-local-dev-secret-change-me
+    secret: 换成你自定义的复杂随机字符串
     expire-minutes: 120
   payment:
-    return-url: http://127.0.0.1:5173/orders
+    return-url: http://114.132.69.232/orders
     alipay:
       enabled: false
       gateway: https://openapi.alipay.com/gateway.do
       app-id:
       private-key:
-      notify-url: http://127.0.0.1:8080/api/payments/alipay/notify
-      return-url: http://127.0.0.1:5173/orders
+      notify-url: http://114.132.69.232/api/payments/alipay/notify
+      return-url: http://114.132.69.232/orders
     wechat:
       enabled: false
       gateway: https://api.mch.weixin.qq.com
@@ -47,4 +47,4 @@ app:
       mch-id:
       merchant-serial-no:
       private-key:
-      notify-url: http://127.0.0.1:8080/api/payments/wechat/notify
+      notify-url: http://114.132.69.232/api/payments/wechat/notify

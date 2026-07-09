@@ -1,52 +1,127 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { adminCategories } from '../../data/adminMock'
+import { adminApi } from '../../services/api'
 
+const categories = ref([])
+const loading = ref(false)
+const saving = ref(false)
 const categoryDialog = ref(false)
-const tagInput = ref('')
+const editingCategory = ref(null)
+const tagInputs = reactive({})
 const categoryForm = reactive({
   name: '',
   tags: '',
 })
 
-function addTag(category) {
-  if (!tagInput.value.trim()) {
-    ElMessage.warning('请输入子标签名称')
-    return
+function normalizeCategory(row = {}) {
+  return {
+    id: row.categoryId || row.id,
+    name: row.name || '',
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    productCount: Number(row.productCount) || 0,
+    sortOrder: Number(row.sortOrder) || 0,
   }
-  ElMessage.success(`已为「${category.name}」添加子标签：${tagInput.value.trim()}`)
-  tagInput.value = ''
 }
 
-function closeTag(tag) {
-  ElMessage.success(`子标签「${tag}」已删除`)
+async function loadCategories() {
+  loading.value = true
+  try {
+    const response = await adminApi.categories()
+    categories.value = (response.data || []).map(normalizeCategory)
+  } catch (error) {
+    categories.value = []
+    ElMessage.error(error.message || 'Category list load failed')
+  } finally {
+    loading.value = false
+  }
+}
+
+function openCreate() {
+  editingCategory.value = null
+  categoryForm.name = ''
+  categoryForm.tags = ''
+  categoryDialog.value = true
 }
 
 function editCategory(category) {
-  ElMessage.info(`正在编辑分类：${category.name}`)
+  editingCategory.value = category
+  categoryForm.name = category.name
+  categoryForm.tags = category.tags.join(',')
+  categoryDialog.value = true
+}
+
+async function saveCategory() {
+  if (!categoryForm.name.trim()) {
+    ElMessage.warning('Category name is required')
+    return
+  }
+  saving.value = true
+  const payload = {
+    name: categoryForm.name.trim(),
+    tags: categoryForm.tags.split(/[,，、;；]/).map((tag) => tag.trim()).filter(Boolean),
+  }
+  try {
+    if (editingCategory.value) {
+      await adminApi.updateCategory(editingCategory.value.id, payload)
+    } else {
+      await adminApi.createCategory(payload)
+    }
+    ElMessage.success('Category saved')
+    categoryDialog.value = false
+    loadCategories()
+  } catch (error) {
+    ElMessage.error(error.message || 'Category save failed')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function addTag(category) {
+  const tag = (tagInputs[category.id] || '').trim()
+  if (!tag) {
+    ElMessage.warning('Tag name is required')
+    return
+  }
+  const tags = [...new Set([...category.tags, tag])]
+  try {
+    await adminApi.updateCategory(category.id, { name: category.name, tags })
+    tagInputs[category.id] = ''
+    ElMessage.success('Tag added')
+    loadCategories()
+  } catch (error) {
+    ElMessage.error(error.message || 'Tag add failed')
+  }
+}
+
+async function closeTag(category, tag) {
+  const tags = category.tags.filter((item) => item !== tag)
+  try {
+    await adminApi.updateCategory(category.id, { name: category.name, tags })
+    ElMessage.success('Tag deleted')
+    loadCategories()
+  } catch (error) {
+    ElMessage.error(error.message || 'Tag delete failed')
+  }
 }
 
 function deleteCategory(category) {
-  ElMessageBox.confirm(`确认删除分类「${category.name}」？`, '删除分类', {
-    confirmButtonText: '确认删除',
-    cancelButtonText: '取消',
+  ElMessageBox.confirm(`Delete category "${category.name}"? Categories with items will be disabled.`, 'Delete category', {
+    confirmButtonText: 'Delete',
+    cancelButtonText: 'Cancel',
     type: 'warning',
-  }).then(() => {
-    ElMessage.success('分类已删除')
+  }).then(async () => {
+    try {
+      await adminApi.deleteCategory(category.id)
+      ElMessage.success('Category deleted')
+      loadCategories()
+    } catch (error) {
+      ElMessage.error(error.message || 'Category delete failed')
+    }
   }).catch(() => {})
 }
 
-function saveCategory() {
-  if (!categoryForm.name.trim()) {
-    ElMessage.warning('请输入分类名称')
-    return
-  }
-  categoryDialog.value = false
-  ElMessage.success('分类已保存')
-  categoryForm.name = ''
-  categoryForm.tags = ''
-}
+onMounted(loadCategories)
 </script>
 
 <template>
@@ -54,44 +129,46 @@ function saveCategory() {
     <el-card shadow="never">
       <template #header>
         <div class="admin-card-header">
-          <strong>分类管理</strong>
-          <el-button type="primary" @click="categoryDialog = true">新增一级分类</el-button>
+          <strong>Category Management</strong>
+          <el-button type="primary" @click="openCreate">New Category</el-button>
         </div>
       </template>
 
-      <div class="category-admin-grid">
-        <el-card v-for="category in adminCategories" :key="category.id" shadow="hover" class="category-admin-card">
+      <div v-loading="loading" class="category-admin-grid">
+        <el-card v-for="category in categories" :key="category.id" shadow="hover" class="category-admin-card">
           <div class="category-title-line">
             <h3>{{ category.name }}</h3>
-            <el-tag>{{ category.productCount }} 件商品</el-tag>
+            <el-tag>{{ category.productCount }} items</el-tag>
           </div>
           <div class="tag-stack">
-            <el-tag v-for="tag in category.tags" :key="tag" closable @close="closeTag(tag)">{{ tag }}</el-tag>
+            <el-tag v-for="tag in category.tags" :key="tag" closable @close="closeTag(category, tag)">
+              {{ tag }}
+            </el-tag>
           </div>
           <div class="tag-add-row">
-            <el-input v-model="tagInput" placeholder="新增子标签" />
-            <el-button @click="addTag(category)">添加</el-button>
+            <el-input v-model="tagInputs[category.id]" placeholder="New tag" />
+            <el-button @click="addTag(category)">Add</el-button>
           </div>
           <div class="category-actions">
-            <el-button type="primary" plain @click="editCategory(category)">编辑</el-button>
-            <el-button type="danger" plain @click="deleteCategory(category)">删除</el-button>
+            <el-button type="primary" plain @click="editCategory(category)">Edit</el-button>
+            <el-button type="danger" plain @click="deleteCategory(category)">Delete</el-button>
           </div>
         </el-card>
       </div>
     </el-card>
 
-    <el-dialog v-model="categoryDialog" title="新增一级分类" width="420">
+    <el-dialog v-model="categoryDialog" :title="editingCategory ? 'Edit Category' : 'New Category'" width="420">
       <el-form label-position="top">
-        <el-form-item label="分类名称">
-          <el-input v-model="categoryForm.name" placeholder="请输入分类名称" />
+        <el-form-item label="Category Name">
+          <el-input v-model="categoryForm.name" placeholder="Category name" />
         </el-form-item>
-        <el-form-item label="子标签">
-          <el-input v-model="categoryForm.tags" placeholder="用逗号分隔多个标签" />
+        <el-form-item label="Tags">
+          <el-input v-model="categoryForm.tags" placeholder="Separated by comma" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="categoryDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveCategory">保存</el-button>
+        <el-button @click="categoryDialog = false">Cancel</el-button>
+        <el-button type="primary" :loading="saving" @click="saveCategory">Save</el-button>
       </template>
     </el-dialog>
   </div>

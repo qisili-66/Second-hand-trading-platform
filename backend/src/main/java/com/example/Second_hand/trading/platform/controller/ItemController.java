@@ -58,8 +58,11 @@ public class ItemController {
 	}
 
 	@PutMapping("/{itemId}")
-	public ApiResponse<Boolean> update(@PathVariable Integer itemId, @RequestBody Map<String, Object> body) {
-		return ApiResponse.success(true);
+	public ApiResponse<Boolean> update(
+			@RequestAttribute("authId") Long authId,
+			@PathVariable Integer itemId,
+			@RequestBody Map<String, Object> body) {
+		return ApiResponse.success(itemService.updateItem(authId, itemId, body));
 	}
 
 	@PatchMapping("/{itemId}/remove")
@@ -114,5 +117,12 @@ public class ItemController {
 			@RequestAttribute("authId") Long authId,
 			@RequestBody Map<String, Object> body) {
 		return ApiResponse.success(itemService.createComment(authId, itemId, body));
+	}
+
+	@PostMapping("/{itemId}/reports")
+	public ApiResponse<Map<String, Object>> reportItem(@PathVariable Integer itemId,
+			@RequestAttribute("authId") Long authId,
+			@RequestBody Map<String, Object> body) {
+		return ApiResponse.success(itemService.createReport(authId, itemId, body));
 	}
 }

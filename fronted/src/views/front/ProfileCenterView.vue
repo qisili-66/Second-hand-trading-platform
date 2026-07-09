@@ -103,6 +103,7 @@ async function fetchUserItems() {
 
   loadingItems.value = true
   try {
+    await syncProfile()
     const [itemsResponse, favoritesResponse, ordersResponse] = await Promise.all([
       userApi.getMyItems({ page: 1, pageSize: 100 }),
       userApi.getMyFavorites({ page: 1, pageSize: 100 }),
@@ -120,6 +121,31 @@ async function fetchUserItems() {
     console.error(error)
   } finally {
     loadingItems.value = false
+  }
+}
+
+async function syncProfile() {
+  const response = await userApi.getMe()
+  if (!response.data) return
+  authStore.updateProfile(response.data)
+  privacy.value = {
+    phone: Boolean(response.data.phoneVisible),
+    wechat: Boolean(response.data.wechatVisible),
+  }
+}
+
+async function savePrivacyToApi() {
+  try {
+    const response = await userApi.updateMe({
+      phoneVisible: privacy.value.phone,
+      wechatVisible: privacy.value.wechat,
+    })
+    if (response.data) {
+      authStore.updateProfile(response.data)
+    }
+    ElMessage.success('Privacy settings saved')
+  } catch (error) {
+    ElMessage.error(error.message || 'Privacy settings save failed')
   }
 }
 
@@ -528,14 +554,14 @@ function openReview(order) {
                 <strong>手机号公开</strong>
                 <p>开启后，交易双方可在订单详情查看手机号。</p>
               </div>
-              <el-switch v-model="privacy.phone" @change="savePrivacy" />
+              <el-switch v-model="privacy.phone" @change="savePrivacyToApi" />
             </div>
             <div class="privacy-row">
               <div>
                 <strong>QQ / 微信公开</strong>
                 <p>开启后，交易双方可在咨询页查看联系方式。</p>
               </div>
-              <el-switch v-model="privacy.wechat" @change="savePrivacy" />
+              <el-switch v-model="privacy.wechat" @change="savePrivacyToApi" />
             </div>
           </div>
         </el-card>

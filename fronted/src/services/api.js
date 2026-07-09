@@ -69,6 +69,7 @@ export const itemApi = {
   unfavorite: (itemId) => api.delete(`/items/${itemId}/favorite`),
   comments: (itemId) => api.get(`/items/${itemId}/comments`),
   createComment: (itemId, data) => api.post(`/items/${itemId}/comments`, data),
+  report: (itemId, data) => api.post(`/items/${itemId}/reports`, data),
 }
 
 export const orderApi = {
@@ -117,6 +118,8 @@ export const adminApi = {
   users: (params) => api.get('/admin/users', { params }),
   disableUser: (userId) => api.patch(`/admin/users/${userId}/disable`),
   enableUser: (userId) => api.patch(`/admin/users/${userId}/enable`),
+  verifyUser: (userId) => api.patch(`/admin/users/${userId}/verify`),
+  verifyPendingUsers: () => api.patch('/admin/users/verify-pending'),
   items: (params) => api.get('/admin/items', { params }),
   createItem: (data) => api.post('/admin/items', data),
   offShelfItem: (itemId, data) => api.patch(`/admin/items/${itemId}/off-shelf`, data),

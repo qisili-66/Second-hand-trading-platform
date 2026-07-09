@@ -157,12 +157,33 @@ function reportItem() {
     cancelButtonText: '取消',
     inputPlaceholder: '例如：虚假商品、描述不符、欺诈风险',
   })
-    .then(({ value }) => {
+    .then(async ({ value }) => {
       if (!value?.trim()) {
         ElMessage.warning('举报原因不能为空')
         return
       }
       ElMessage.success('举报已提交，等待管理员审核')
+    })
+    .catch(() => {})
+}
+
+function reportItemToApi() {
+  if (!requireLogin('Report item')) return
+  ElMessageBox.prompt('Please enter the report reason.', 'Report item', {
+    confirmButtonText: 'Submit',
+    cancelButtonText: 'Cancel',
+    inputPlaceholder: 'Fake item, misleading description, fraud risk...',
+  })
+    .then(async ({ value }) => {
+      if (!value?.trim()) {
+        ElMessage.warning('Report reason cannot be empty')
+        return
+      }
+      await itemApi.report(product.value.id, {
+        reportType: 'ITEM',
+        content: value.trim(),
+      })
+      ElMessage.success('Report submitted')
     })
     .catch(() => {})
 }
@@ -235,7 +256,7 @@ async function submitComment() {
             立即咨询
           </el-button>
           <el-button size="large" type="warning" @click="reserveItem">预约商品</el-button>
-          <el-button size="large" :icon="Flag" @click="reportItem">举报</el-button>
+          <el-button size="large" :icon="Flag" @click="reportItemToApi">举报</el-button>
         </div>
       </el-card>
     </section>

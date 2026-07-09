@@ -1,10 +1,43 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { adminUsers } from '../../data/adminMock'
+import { adminApi } from '../../services/api'
 
+const users = ref([])
+const loading = ref(false)
 const detailDialog = ref(false)
-const currentUser = ref(adminUsers[0] || {})
+const currentUser = ref({})
+
+const pendingCount = computed(() => users.value.filter((user) => user.verifiedStatus !== 'VERIFIED').length)
+
+function normalizeUser(row = {}) {
+  return {
+    userId: row.userId,
+    studentNo: row.studentNo || '',
+    name: row.realName || row.nickname || '',
+    nickname: row.nickname || '',
+    department: row.department || '',
+    campus: row.campus || '',
+    verifiedStatus: row.verifiedStatus || 'UNVERIFIED',
+    creditScore: row.creditScore ?? 100,
+    phone: row.phone || '',
+    status: row.status || 'NORMAL',
+    createdAt: String(row.createdAt || '').replace('T', ' ').slice(0, 16),
+  }
+}
+
+async function loadUsers() {
+  loading.value = true
+  try {
+    const response = await adminApi.users({ page: 1, pageSize: 100 })
+    users.value = (response.data?.list || []).map(normalizeUser)
+  } catch (error) {
+    users.value = []
+    ElMessage.error(error.message || 'User list load failed')
+  } finally {
+    loading.value = false
+  }
+}
 
 function openDetail(user) {
   currentUser.value = user
@@ -12,40 +45,58 @@ function openDetail(user) {
 }
 
 function exportUsers() {
-  if (!adminUsers.length) {
-    ElMessage.info('当前没有普通用户账号可导出')
-    return
-  }
-  ElMessage.success('用户数据导出任务已创建')
+  const rows = users.value.map((user) => `${user.userId},${user.studentNo},${user.name},${user.status}`).join('\n')
+  const blob = new Blob([`id,studentNo,name,status\n${rows}`], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'users.csv'
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
-function batchAudit() {
-  if (!adminUsers.length) {
-    ElMessage.info('当前没有待审核实名用户')
-    return
+async function batchAudit() {
+  try {
+    const response = await adminApi.verifyPendingUsers()
+    ElMessage.success(`Verified ${response.data?.updated || 0} users`)
+    loadUsers()
+  } catch (error) {
+    ElMessage.error(error.message || 'Batch verify failed')
   }
-  ElMessage.success('批量审核已完成')
 }
 
-function auditUser(user) {
-  ElMessage.success(`${user.name || user.studentNo} 的实名信息已审核`)
+async function auditUser(user) {
+  try {
+    await adminApi.verifyUser(user.userId)
+    ElMessage.success('User verified')
+    loadUsers()
+  } catch (error) {
+    ElMessage.error(error.message || 'Verify failed')
+  }
 }
 
 function toggleUserStatus(user) {
-  ElMessageBox.confirm(`确认${user.status === '正常' ? '封禁' : '解封'}该用户？`, '账号状态调整', {
-    confirmButtonText: '确认',
-    cancelButtonText: '取消',
+  const disabling = user.status === 'NORMAL'
+  ElMessageBox.confirm(`Confirm ${disabling ? 'disable' : 'enable'} this user?`, 'User status', {
+    confirmButtonText: 'Confirm',
+    cancelButtonText: 'Cancel',
     type: 'warning',
-  }).then(() => {
-    ElMessage.success('账号状态已更新')
+  }).then(async () => {
+    try {
+      if (disabling) {
+        await adminApi.disableUser(user.userId)
+      } else {
+        await adminApi.enableUser(user.userId)
+      }
+      ElMessage.success('User status updated')
+      loadUsers()
+    } catch (error) {
+      ElMessage.error(error.message || 'Status update failed')
+    }
   }).catch(() => {})
 }
 
-function viewViolations(user) {
-  ElMessageBox.alert(`${user.name || user.studentNo} 暂无违规记录。`, '违规记录', {
-    confirmButtonText: '知道了',
-  })
-}
+onMounted(loadUsers)
 </script>
 
 <template>
@@ -53,54 +104,57 @@ function viewViolations(user) {
     <el-card shadow="never">
       <template #header>
         <div class="admin-card-header">
-          <strong>用户管理</strong>
+          <strong>User Management</strong>
           <div>
-            <el-button @click="exportUsers">导出用户</el-button>
-            <el-button type="primary" @click="batchAudit">批量审核实名</el-button>
+            <el-tag type="warning">Pending verify: {{ pendingCount }}</el-tag>
+            <el-button @click="exportUsers">Export</el-button>
+            <el-button type="primary" @click="batchAudit">Verify pending</el-button>
           </div>
         </div>
       </template>
 
-      <el-table :data="adminUsers" stripe>
-        <el-table-column prop="studentNo" label="学号" min-width="120" />
-        <el-table-column prop="name" label="姓名" min-width="100" />
-        <el-table-column prop="department" label="院系" min-width="160" />
-        <el-table-column prop="verified" label="实名状态" min-width="110">
+      <el-table v-loading="loading" :data="users" stripe>
+        <el-table-column prop="studentNo" label="Student No" min-width="120" />
+        <el-table-column prop="name" label="Name" min-width="120" />
+        <el-table-column prop="department" label="Department" min-width="150" />
+        <el-table-column prop="campus" label="Campus" min-width="120" />
+        <el-table-column prop="verifiedStatus" label="Verify" min-width="120">
           <template #default="{ row }">
-            <el-tag :type="row.verified === '已实名' ? 'success' : row.verified === '待审核' ? 'warning' : 'info'">
-              {{ row.verified }}
+            <el-tag :type="row.verifiedStatus === 'VERIFIED' ? 'success' : 'warning'">
+              {{ row.verifiedStatus }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="credit" label="信用分" min-width="90" />
-        <el-table-column prop="contact" label="联系方式" min-width="150" />
-        <el-table-column prop="registeredAt" label="注册时间" min-width="170" />
-        <el-table-column prop="status" label="账号状态" min-width="100">
+        <el-table-column prop="creditScore" label="Credit" min-width="90" />
+        <el-table-column prop="phone" label="Phone" min-width="130" />
+        <el-table-column prop="createdAt" label="Created At" min-width="170" />
+        <el-table-column prop="status" label="Status" min-width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === '正常' ? 'success' : 'danger'">{{ row.status }}</el-tag>
+            <el-tag :type="row.status === 'NORMAL' ? 'success' : 'danger'">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="310">
+        <el-table-column label="Actions" fixed="right" width="250">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">查看详情</el-button>
-            <el-button link type="warning" @click="auditUser(row)">审核实名</el-button>
-            <el-button link :type="row.status === '正常' ? 'danger' : 'success'" @click="toggleUserStatus(row)">
-              {{ row.status === '正常' ? '封禁' : '解封' }}
+            <el-button link type="primary" @click="openDetail(row)">Detail</el-button>
+            <el-button link type="warning" @click="auditUser(row)">Verify</el-button>
+            <el-button link :type="row.status === 'NORMAL' ? 'danger' : 'success'" @click="toggleUserStatus(row)">
+              {{ row.status === 'NORMAL' ? 'Disable' : 'Enable' }}
             </el-button>
-            <el-button link @click="viewViolations(row)">违规记录</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog v-model="detailDialog" title="用户详情" width="520">
+    <el-dialog v-model="detailDialog" title="User Detail" width="520">
       <el-descriptions :column="1" border>
-        <el-descriptions-item label="学号">{{ currentUser.studentNo }}</el-descriptions-item>
-        <el-descriptions-item label="姓名">{{ currentUser.name }}</el-descriptions-item>
-        <el-descriptions-item label="院系">{{ currentUser.department }}</el-descriptions-item>
-        <el-descriptions-item label="实名状态">{{ currentUser.verified }}</el-descriptions-item>
-        <el-descriptions-item label="信用分">{{ currentUser.credit }}</el-descriptions-item>
-        <el-descriptions-item label="联系方式">{{ currentUser.contact }}</el-descriptions-item>
+        <el-descriptions-item label="Student No">{{ currentUser.studentNo }}</el-descriptions-item>
+        <el-descriptions-item label="Name">{{ currentUser.name }}</el-descriptions-item>
+        <el-descriptions-item label="Nickname">{{ currentUser.nickname }}</el-descriptions-item>
+        <el-descriptions-item label="Department">{{ currentUser.department }}</el-descriptions-item>
+        <el-descriptions-item label="Campus">{{ currentUser.campus }}</el-descriptions-item>
+        <el-descriptions-item label="Verify">{{ currentUser.verifiedStatus }}</el-descriptions-item>
+        <el-descriptions-item label="Credit">{{ currentUser.creditScore }}</el-descriptions-item>
+        <el-descriptions-item label="Phone">{{ currentUser.phone }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
   </div>

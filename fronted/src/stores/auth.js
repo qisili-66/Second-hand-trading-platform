@@ -41,11 +41,21 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('accessToken')
   }
 
+  function updateProfile(profile = {}) {
+    user.value = {
+      ...(user.value || {}),
+      ...profile,
+      nickname: profile.nickname || user.value?.nickname || profile.realName || user.value?.realName || user.value?.account,
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(user.value))
+  }
+
   return {
     user,
     isLoggedIn,
     isAdmin,
     login,
     logout,
+    updateProfile,
   }
 })

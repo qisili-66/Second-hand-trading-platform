@@ -1,19 +1,77 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { adminReports } from '../../data/adminMock'
+import { adminApi } from '../../services/api'
 
-const pendingCount = computed(() => adminReports.filter((report) => report.status === '待审核').length)
+const reports = ref([])
+const loading = ref(false)
+const pendingCount = computed(() => reports.value.filter((report) => report.status === 'PENDING').length)
+
+function normalizeReport(row = {}) {
+  return {
+    id: row.reportId || row.id,
+    reporter: row.reporterName || (row.reporterId ? `User ${row.reporterId}` : ''),
+    target: row.targetName || `${row.targetType || ''} ${row.targetId || ''}`.trim(),
+    targetType: row.targetType || '',
+    targetId: row.targetId,
+    type: row.reportType || '',
+    content: row.content || '',
+    status: row.status || 'PENDING',
+    resultRemark: row.resultRemark || '',
+    createdAt: String(row.createdAt || '').replace('T', ' ').slice(0, 16),
+  }
+}
+
+async function loadReports() {
+  loading.value = true
+  try {
+    const response = await adminApi.reports({ page: 1, pageSize: 100 })
+    reports.value = (response.data?.list || []).map(normalizeReport)
+  } catch (error) {
+    reports.value = []
+    ElMessage.error(error.message || 'Report list load failed')
+  } finally {
+    loading.value = false
+  }
+}
 
 function handleReport(row, action) {
-  ElMessageBox.confirm(`确认对举报 ${row.id} 执行「${action}」？`, '举报审核', {
-    confirmButtonText: '确认',
-    cancelButtonText: '取消',
-    type: action.includes('驳回') ? 'info' : 'warning',
-  }).then(() => {
-    ElMessage.success(`举报处理已提交：${action}`)
+  const labels = {
+    APPROVE: 'approve report',
+    OFF_SHELF: 'approve and remove item',
+    OFF_SHELF_AND_PENALIZE: 'approve, remove item and deduct credit',
+    REJECT: 'reject report',
+  }
+  ElMessageBox.confirm(`Confirm ${labels[action]} for report ${row.id}?`, 'Report review', {
+    confirmButtonText: 'Confirm',
+    cancelButtonText: 'Cancel',
+    type: action === 'REJECT' ? 'info' : 'warning',
+  }).then(async () => {
+    try {
+      if (action === 'REJECT') {
+        await adminApi.rejectReport(row.id, { remark: 'Report rejected' })
+      } else {
+        await adminApi.approveReport(row.id, {
+          action,
+          remark: labels[action],
+          creditDeduction: 10,
+        })
+      }
+      ElMessage.success('Report handled')
+      loadReports()
+    } catch (error) {
+      ElMessage.error(error.message || 'Report handle failed')
+    }
   }).catch(() => {})
 }
+
+function reportStatusType(status) {
+  if (status === 'APPROVED') return 'success'
+  if (status === 'REJECTED') return 'info'
+  return 'warning'
+}
+
+onMounted(loadReports)
 </script>
 
 <template>
@@ -21,27 +79,37 @@ function handleReport(row, action) {
     <el-card shadow="never">
       <template #header>
         <div class="admin-card-header">
-          <strong>举报审核管理</strong>
-          <el-tag type="danger">待审核 {{ pendingCount }} 条</el-tag>
+          <strong>Report Review</strong>
+          <el-tag type="danger">Pending {{ pendingCount }}</el-tag>
         </div>
       </template>
 
-      <el-table :data="adminReports" stripe>
-        <el-table-column prop="id" label="举报编号" min-width="160" />
-        <el-table-column prop="reporter" label="举报人" min-width="110" />
-        <el-table-column prop="target" label="被举报商品/用户" min-width="220" />
-        <el-table-column prop="type" label="举报类型" min-width="130">
+      <el-table v-loading="loading" :data="reports" stripe>
+        <el-table-column prop="id" label="Report ID" min-width="110" />
+        <el-table-column prop="reporter" label="Reporter" min-width="130" />
+        <el-table-column prop="target" label="Target" min-width="220" />
+        <el-table-column prop="type" label="Type" min-width="130" />
+        <el-table-column prop="content" label="Content" min-width="300" />
+        <el-table-column prop="status" label="Status" min-width="110">
           <template #default="{ row }">
-            <el-tag :type="row.type === '欺诈' ? 'danger' : 'warning'">{{ row.type }}</el-tag>
+            <el-tag :type="reportStatusType(row.status)">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="content" label="举报内容" min-width="300" />
-        <el-table-column prop="status" label="状态" min-width="110" />
-        <el-table-column label="操作" fixed="right" width="270">
+        <el-table-column prop="resultRemark" label="Result" min-width="180" />
+        <el-table-column label="Actions" fixed="right" width="330">
           <template #default="{ row }">
-            <el-button link type="danger" @click="handleReport(row, '通过举报')">通过举报</el-button>
-            <el-button link type="warning" @click="handleReport(row, '下架商品+扣分封号')">下架商品+扣分封号</el-button>
-            <el-button link @click="handleReport(row, '驳回举报')">驳回举报</el-button>
+            <el-button link type="danger" :disabled="row.status !== 'PENDING'" @click="handleReport(row, 'APPROVE')">
+              Approve
+            </el-button>
+            <el-button link type="warning" :disabled="row.status !== 'PENDING' || row.targetType !== 'ITEM'" @click="handleReport(row, 'OFF_SHELF')">
+              Remove Item
+            </el-button>
+            <el-button link type="warning" :disabled="row.status !== 'PENDING' || row.targetType !== 'ITEM'" @click="handleReport(row, 'OFF_SHELF_AND_PENALIZE')">
+              Remove + Deduct
+            </el-button>
+            <el-button link :disabled="row.status !== 'PENDING'" @click="handleReport(row, 'REJECT')">
+              Reject
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
