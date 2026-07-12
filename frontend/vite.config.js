@@ -10,6 +10,9 @@ export default defineConfig({
     vue(),
     vueDevTools(),
   ],
+    define: {
+    global: 'window'
+  },
   server: {
     proxy: {
       '/api': {
@@ -29,3 +32,4 @@ export default defineConfig({
     },
   },
 })
+
