@@ -58,6 +58,22 @@ public class UserController {
 		return ApiResponse.success(PageResponse.of(userService.notifications(authId), 1, 10));
 	}
 
+	@GetMapping("/me/purchases")
+	public ApiResponse<PageResponse<Map<String, Object>>> myPurchases(
+			@RequestAttribute("authId") Long authId,
+			@RequestParam(defaultValue = "1") int page,
+			@RequestParam(defaultValue = "10") int pageSize) {
+		return ApiResponse.success(PageResponse.page(userService.myPurchases(authId), page, pageSize));
+	}
+
+	@GetMapping("/me/exchanges")
+	public ApiResponse<PageResponse<Map<String, Object>>> myExchanges(
+			@RequestAttribute("authId") Long authId,
+			@RequestParam(defaultValue = "1") int page,
+			@RequestParam(defaultValue = "10") int pageSize) {
+		return ApiResponse.success(PageResponse.page(userService.myExchanges(authId), page, pageSize));
+	}
+
 	@GetMapping("/{userId}/reviews")
 	public ApiResponse<PageResponse<Map<String, Object>>> reviews(
 			@PathVariable Integer userId,

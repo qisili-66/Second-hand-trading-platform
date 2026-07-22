@@ -14,10 +14,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class UserService {
 	private final JdbcTemplate jdbcTemplate;
 	private final ItemService itemService;
+	private final BazaarService bazaarService;
 
-	public UserService(JdbcTemplate jdbcTemplate, ItemService itemService) {
+	public UserService(JdbcTemplate jdbcTemplate, ItemService itemService, BazaarService bazaarService) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.itemService = itemService;
+		this.bazaarService = bazaarService;
 	}
 
 	public Map<String, Object> currentUser(Long userId) {
@@ -144,6 +146,14 @@ public class UserService {
 
 	public List<Map<String, Object>> myFavorites(Long userId) {
 		return itemService.favoriteItems(userId);
+	}
+
+	public List<Map<String, Object>> myPurchases(Long userId) {
+		return bazaarService.purchasesByUser(userId);
+	}
+
+	public List<Map<String, Object>> myExchanges(Long userId) {
+		return bazaarService.exchangesByUser(userId);
 	}
 
 	public List<Map<String, Object>> notifications(Long userId) {

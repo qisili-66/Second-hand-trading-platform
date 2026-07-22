@@ -71,21 +71,13 @@ async function submitRegister() {
 </script>
 
 <template>
-  <main class="page-wrap auth-page">
-    <section class="auth-hero">
-      <p class="section-kicker">实名注册 · 校园可信</p>
-      <h1>注册校园二手闲置网</h1>
-      <p>注册时绑定学号、姓名和院系信息，后续用于交易实名校验。</p>
-    </section>
-
+  <main class="page-wrap auth-page simple-auth-page">
     <section class="auth-layout auth-layout-single auth-layout-wide">
-      <el-card class="auth-card register-card" shadow="never">
-        <template #header>
-          <div class="card-header">
-            <span>实名注册</span>
-            <RouterLink to="/login">已有账号，前往登录</RouterLink>
-          </div>
-        </template>
+      <el-card class="auth-card simple-auth-card register-card" shadow="never">
+        <div class="simple-auth-title">
+          <p>校园二手闲置网</p>
+          <h1>注册</h1>
+        </div>
 
         <el-form label-position="top">
           <div class="two-column-form">

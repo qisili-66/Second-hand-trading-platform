@@ -71,10 +71,11 @@ public class AuthService {
 		List<Map<String, Object>> users = jdbcTemplate.queryForList("""
 				SELECT id AS userId, password_hash AS passwordHash
 				FROM users
-				WHERE deleted = 0 AND status = 'NORMAL' AND (student_no = ? OR email = ?)
+				WHERE deleted = 0 AND status = 'NORMAL'
+				  AND (student_no = ? OR email = ? OR nickname = ? OR real_name = ?)
 				ORDER BY id
 				LIMIT 1
-				""", account, account);
+				""", account, account, account, account);
 
 		if (users.isEmpty() || !passwordMatches(password, String.valueOf(users.get(0).get("passwordHash")))) {
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "账号或密码错误");
@@ -103,6 +104,31 @@ public class AuthService {
 		admin.remove("passwordHash");
 		jdbcTemplate.update("UPDATE admin_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?", admin.get("adminId"));
 		return admin;
+	}
+
+	public boolean changeAdminPassword(Long adminId, Map<String, Object> body) {
+		if (adminId == null) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录管理员账号");
+		}
+		String oldPassword = required(body, "oldPassword", "当前密码");
+		String newPassword = required(body, "newPassword", "新密码");
+		if (newPassword.length() < 8) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新密码至少 8 位");
+		}
+		List<String> passwordHashes = jdbcTemplate.queryForList("""
+				SELECT password_hash
+				FROM admin_users
+				WHERE id = ? AND status = 'NORMAL'
+				LIMIT 1
+				""", String.class, adminId);
+		if (passwordHashes.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "管理员账号不存在或已停用");
+		}
+		if (!passwordMatches(oldPassword, passwordHashes.get(0))) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "当前密码错误");
+		}
+		jdbcTemplate.update("UPDATE admin_users SET password_hash = ? WHERE id = ?", hashPassword(newPassword), adminId);
+		return true;
 	}
 
 	private Map<String, Object> userByStudentNo(String studentNo) {

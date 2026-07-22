@@ -110,6 +110,20 @@ public class BazaarService {
 		return recommendForPurchase(purchase, 10);
 	}
 
+	public List<Map<String, Object>> purchasesByUser(Long userId) {
+		if (userId == null) {
+			return List.of();
+		}
+		return purchaseMapper.selectList(Wrappers.lambdaQuery(PurchaseEntity.class)
+				.eq(PurchaseEntity::getDeleted, 0)
+				.eq(PurchaseEntity::getUserId, userId)
+				.orderByDesc(PurchaseEntity::getCreatedAt)
+				.last("LIMIT 100"))
+				.stream()
+				.map(this::purchaseRow)
+				.toList();
+	}
+
 	public PageResponse<Map<String, Object>> exchanges(String keyword, Long categoryId, String campus,
 			String status, int page, int pageSize) {
 		LambdaQueryWrapper<ExchangeEntity> wrapper = Wrappers.lambdaQuery(ExchangeEntity.class)
@@ -188,6 +202,20 @@ public class BazaarService {
 	public List<Map<String, Object>> exchangeMatches(Integer exchangeId) {
 		ExchangeEntity exchange = requireExchange(exchangeId);
 		return recommendForExchange(exchange, 10);
+	}
+
+	public List<Map<String, Object>> exchangesByUser(Long userId) {
+		if (userId == null) {
+			return List.of();
+		}
+		return exchangeMapper.selectList(Wrappers.lambdaQuery(ExchangeEntity.class)
+				.eq(ExchangeEntity::getDeleted, 0)
+				.eq(ExchangeEntity::getUserId, userId)
+				.orderByDesc(ExchangeEntity::getCreatedAt)
+				.last("LIMIT 100"))
+				.stream()
+				.map(this::exchangeRow)
+				.toList();
 	}
 
 	private List<Map<String, Object>> recommendForPurchase(PurchaseEntity purchase, int limit) {

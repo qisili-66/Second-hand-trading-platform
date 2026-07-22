@@ -38,6 +38,8 @@ export function normalizeItem(item = {}) {
     favoriteCount: numberValue(item.favoriteCount),
     distance: '',
     swap: Boolean(item.swapSupported),
+    matchScore: numberValue(item.matchScore),
+    matchReasons: Array.isArray(item.matchReasons) ? item.matchReasons : [],
     image: coverUrl,
     imageUrls: imageUrls.length ? imageUrls : [coverUrl],
     seller: seller.nickname || (seller.userId ? `用户${seller.userId}` : ''),
@@ -157,5 +159,76 @@ export function normalizeMessage(message = {}, currentUserId) {
     messageType: message.messageType || 'TEXT',
     imageUrl: message.imageUrl || '',
     time: dateText(message.createdAt),
+  }
+}
+
+export function budgetText(item = {}) {
+  if (item.budgetMin && item.budgetMax) return `￥${item.budgetMin} - ￥${item.budgetMax}`
+  if (item.budgetMax) return `￥${item.budgetMax} 以内`
+  if (item.budgetMin) return `￥${item.budgetMin} 以上`
+  return '面议'
+}
+
+export function normalizePurchase(item = {}) {
+  const user = item.user || {}
+  return {
+    id: item.purchaseId || item.postId || item.id,
+    purchaseId: item.purchaseId || item.postId || item.id,
+    userId: item.userId || user.userId,
+    title: item.title || '',
+    description: item.description || '',
+    categoryName: item.categoryName || '',
+    campus: item.campus || '',
+    budget: budgetText(item),
+    budgetMin: item.budgetMin,
+    budgetMax: item.budgetMax,
+    user: user.nickname || (item.userId ? `用户${item.userId}` : ''),
+    status: item.status || '',
+    createdAt: dateText(item.createdAt),
+  }
+}
+
+export function normalizePurchasePage(response = {}) {
+  const data = response.data || response
+  return {
+    list: Array.isArray(data.list) ? data.list.map(normalizePurchase) : [],
+    page: Number(data.page) || 1,
+    pageSize: Number(data.pageSize) || 10,
+    total: Number(data.total) || 0,
+  }
+}
+
+export function normalizeExchange(item = {}) {
+  const user = item.user || {}
+  const offeredItem = item.item || {}
+  return {
+    id: item.exchangeId || item.swapRequestId || item.id,
+    exchangeId: item.exchangeId || item.swapRequestId || item.id,
+    exchangeNo: item.exchangeNo || '',
+    userId: item.userId || user.userId,
+    itemId: item.itemId || offeredItem.itemId,
+    title: offeredItem.title || item.title || '置换商品',
+    image: offeredItem.coverUrl || fallbackImage,
+    expectedTitle: item.expectedTitle || '接受相近物品',
+    description: item.description || '',
+    campus: item.campus || offeredItem.campus || '',
+    user: user.nickname || (item.userId ? `用户${item.userId}` : ''),
+    status: item.status || '',
+    item: offeredItem,
+    targetItem: item.targetItem || {},
+    matchScore: numberValue(item.matchScore),
+    matchReasons: Array.isArray(item.matchReasons) ? item.matchReasons : [],
+    recommendedItems: item.recommendedItems || [],
+    createdAt: dateText(item.createdAt),
+  }
+}
+
+export function normalizeExchangePage(response = {}) {
+  const data = response.data || response
+  return {
+    list: Array.isArray(data.list) ? data.list.map(normalizeExchange) : [],
+    page: Number(data.page) || 1,
+    pageSize: Number(data.pageSize) || 10,
+    total: Number(data.total) || 0,
   }
 }

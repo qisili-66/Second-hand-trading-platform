@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="18" fill="#FFF7EE"/>
+  <path d="M17 28.5C17 25.5 19.5 23 22.5 23H41.5C44.5 23 47 25.5 47 28.5V47C47 49.8 44.8 52 42 52H22C19.2 52 17 49.8 17 47V28.5Z" fill="#D9642A"/>
+  <path d="M24 23V20.8C24 16.6 27.4 13.2 31.6 13.2H32.4C36.6 13.2 40 16.6 40 20.8V23" stroke="#201914" stroke-width="4" stroke-linecap="round"/>
+  <path d="M23.5 32.5H32.2C35.3 32.5 37.8 35 37.8 38.1V38.3" stroke="#FFF7EE" stroke-width="3.6" stroke-linecap="round"/>
+  <path d="M34.4 35.2L38.1 38.6L41.5 34.9" stroke="#FFF7EE" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.5 43.5H31.8C28.7 43.5 26.2 41 26.2 37.9V37.7" stroke="#201914" stroke-width="3.6" stroke-linecap="round"/>
+  <path d="M29.6 40.8L25.9 37.4L22.5 41.1" stroke="#201914" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M47 29.5V47C47 49.8 44.8 52 42 52H34.5C41.7 47.3 45.7 39.6 47 29.5Z" fill="#B94F1E" opacity="0.34"/>
+  <path d="M18.5 29.5C18.5 26.7 20.7 24.5 23.5 24.5H40.5C43.3 24.5 45.5 26.7 45.5 29.5V46.2C45.5 48.6 43.6 50.5 41.2 50.5H22.8C20.4 50.5 18.5 48.6 18.5 46.2V29.5Z" stroke="#201914" stroke-width="3"/>
+  <circle cx="22" cy="23" r="2.2" fill="#2E6B63"/>
+  <circle cx="42" cy="23" r="2.2" fill="#2E6B63"/>
+</svg>

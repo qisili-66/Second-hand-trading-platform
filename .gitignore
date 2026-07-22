@@ -1,1 +1,11 @@
 backend/uploads/
+
+doc/
+.idea/
+.vscode/
+mcp-shell.log
+
+ai/.env
+ai/.venv/
+ai/.pytest_cache/
+ai/**/__pycache__/

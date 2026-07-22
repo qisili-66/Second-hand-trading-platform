@@ -29,6 +29,12 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(40001, message));
 	}
 
+	@ExceptionHandler(IllegalStateException.class)
+	public ResponseEntity<ApiResponse<Object>> handleIllegalState(IllegalStateException ex) {
+		String message = ex.getMessage() == null || ex.getMessage().isBlank() ? "服务暂不可用" : ex.getMessage();
+		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ApiResponse.error(50300, message));
+	}
+
 	@ExceptionHandler({
 			MissingServletRequestParameterException.class,
 			MethodArgumentTypeMismatchException.class,

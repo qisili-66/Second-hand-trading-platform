@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.Second_hand.trading.platform.dto.ApiResponse;
 import com.example.Second_hand.trading.platform.dto.PageResponse;
 import com.example.Second_hand.trading.platform.service.AdminService;
+import com.example.Second_hand.trading.platform.service.AuthService;
 import com.example.Second_hand.trading.platform.service.ItemService;
 import com.example.Second_hand.trading.platform.service.TradeWorkflowService;
 import com.example.Second_hand.trading.platform.service.UserService;
@@ -25,13 +26,15 @@ import com.example.Second_hand.trading.platform.service.UserService;
 @RequestMapping("/api/admin")
 public class AdminController {
 	private final AdminService adminService;
+	private final AuthService authService;
 	private final UserService userService;
 	private final ItemService itemService;
 	private final TradeWorkflowService tradeWorkflowService;
 
-	public AdminController(AdminService adminService, UserService userService, ItemService itemService,
+	public AdminController(AdminService adminService, AuthService authService, UserService userService, ItemService itemService,
 			TradeWorkflowService tradeWorkflowService) {
 		this.adminService = adminService;
+		this.authService = authService;
 		this.userService = userService;
 		this.itemService = itemService;
 		this.tradeWorkflowService = tradeWorkflowService;
@@ -40,6 +43,13 @@ public class AdminController {
 	@GetMapping("/dashboard")
 	public ApiResponse<Map<String, Object>> dashboard() {
 		return ApiResponse.success(adminService.dashboard());
+	}
+
+	@PatchMapping("/password")
+	public ApiResponse<Boolean> changePassword(
+			@RequestAttribute("authId") Long authId,
+			@RequestBody Map<String, Object> body) {
+		return ApiResponse.success(authService.changeAdminPassword(authId, body));
 	}
 
 	@GetMapping("/users")

@@ -1,10 +1,10 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
-import { campuses, categories, conditions } from '../../data/mock'
-import { itemApi } from '../../services/api'
+import { campuses, categoryNames, conditions, fallbackCategories } from '../../data/options'
+import { categoryApi, itemApi } from '../../services/api'
 import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
@@ -12,6 +12,7 @@ const authStore = useAuthStore()
 const fileList = ref([])
 const submitting = ref(false)
 const savingDraft = ref(false)
+const categoryOptions = ref(fallbackCategories)
 const uploadHeaders = computed(() => {
   const token = localStorage.getItem('accessToken')
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -20,14 +21,69 @@ const uploadHeaders = computed(() => {
 const form = reactive({
   title: '',
   desc: '',
-  price: '',
-  originalPrice: '',
+  price: null,
+  originalPrice: null,
   condition: '',
   category: '',
   campus: '',
   dorm: '',
   tradeModes: ['面交'],
+  swapSupported: false,
 })
+
+function readAgentPublishDraft() {
+  if (!authStore.isLoggedIn) return
+  const raw = sessionStorage.getItem('campus-agent-publish-draft')
+  if (!raw) return
+  try {
+    const draft = JSON.parse(raw)
+    form.title = draft.title || form.title
+    form.desc = draft.description || form.desc
+    form.condition = normalizeCondition(draft.condition) || form.condition
+    form.category = normalizeCategory(draft.category) || form.category
+    form.campus = draft.campus_suggestion || form.campus
+    form.dorm = draft.trade_place_suggestion || form.dorm
+    const inferredPrice = inferPriceFromRange(draft.price_range)
+    if (inferredPrice !== null) form.price = inferredPrice
+    form.swapSupported = Boolean(draft.swap_supported || draft.accept_swap)
+    sessionStorage.removeItem('campus-agent-publish-draft')
+    ElMessage.success('已填入 Agent 发布草稿，补充图片后即可保存或发布')
+  } catch (error) {
+    sessionStorage.removeItem('campus-agent-publish-draft')
+  }
+}
+
+async function fetchCategories() {
+  try {
+    categoryOptions.value = categoryNames(await categoryApi.list())
+  } catch (error) {
+    categoryOptions.value = fallbackCategories
+    console.error(error)
+  }
+}
+
+function normalizeCategory(value) {
+  return categoryOptions.value.includes(value) ? value : ''
+}
+
+function normalizeCondition(value = '') {
+  if (conditions.includes(value)) return value
+  if (value.includes('9')) return '9成新'
+  if (value.includes('8')) return '8成新'
+  if (value.includes('全新')) return '全新'
+  if (value.includes('明显')) return '明显使用'
+  if (value.includes('轻微')) return '轻微使用'
+  return ''
+}
+
+function inferPriceFromRange(value = '') {
+  const matches = String(value).match(/\d+(?:\.\d+)?/g)
+  if (!matches?.length) return null
+  const numbers = matches.map(Number).filter((number) => Number.isFinite(number))
+  if (numbers.length === 0) return null
+  if (numbers.length === 1) return numbers[0]
+  return Math.round((numbers[0] + numbers[1]) / 2)
+}
 
 function formatText(command) {
   ElMessage.info(`${command}功能已记录，后续接入富文本编辑器`)
@@ -110,6 +166,7 @@ async function saveItem(status) {
       campus: form.campus,
       dormitory: Array.isArray(form.dorm) ? form.dorm.join('/') : form.dorm,
       tradeModes: form.tradeModes,
+      swapSupported: form.swapSupported,
       status,
       imageUrls: imageUrls(),
     })
@@ -135,6 +192,11 @@ function saveDraft() {
 function submitItem() {
   saveItem('上架')
 }
+
+onMounted(async () => {
+  await fetchCategories()
+  readAgentPublishDraft()
+})
 </script>
 
 <template>
@@ -216,7 +278,7 @@ function submitItem() {
           <div class="two-column-form">
             <el-form-item label="商品分类">
               <el-select v-model="form.category" placeholder="选择分类">
-                <el-option v-for="category in categories" :key="category" :label="category" :value="category" />
+                <el-option v-for="category in categoryOptions" :key="category" :label="category" :value="category" />
               </el-select>
             </el-form-item>
             <el-form-item label="校区">
@@ -234,9 +296,12 @@ function submitItem() {
           <template #header>交易设置</template>
           <el-form-item label="交易模式">
             <el-checkbox-group v-model="form.tradeModes">
-              <el-checkbox label="面交" />
-              <el-checkbox label="线上担保" />
+              <el-checkbox label="面交" value="面交" />
+              <el-checkbox label="线上担保" value="线上担保" />
             </el-checkbox-group>
+          </el-form-item>
+          <el-form-item label="置换意愿">
+            <el-switch v-model="form.swapSupported" active-text="接受以物换物" inactive-text="只出售" />
           </el-form-item>
         </el-card>
 

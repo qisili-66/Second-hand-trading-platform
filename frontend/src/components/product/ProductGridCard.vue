@@ -1,5 +1,5 @@
 <script setup>
-import { conditionTagMap } from '../../data/mock'
+import { conditionTagMap } from '../../data/options'
 
 defineProps({
   product: {

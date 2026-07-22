@@ -1,9 +1,9 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ProductListItem from '../../components/product/ProductListItem.vue'
-import { campuses, categories, conditions } from '../../data/mock'
-import { itemApi } from '../../services/api'
+import { campuses, categoryNames, conditions, fallbackCategories } from '../../data/options'
+import { categoryApi, itemApi } from '../../services/api'
 import { normalizeItemPage } from '../../services/normalizers'
 
 const route = useRoute()
@@ -41,6 +41,7 @@ const currentPage = ref(Math.max(1, Number(route.query.page) || 1))
 const productList = ref([])
 const productsTotal = ref(0)
 const isLoading = ref(false)
+const categoryOptions = ref(fallbackCategories)
 
 const keyword = computed(() => String(route.query.keyword || '').trim())
 const pageTitle = computed(() => (keyword.value ? `"${keyword.value}" 相关商品` : '全部商品'))
@@ -58,6 +59,15 @@ watch(
   },
   { immediate: true },
 )
+
+async function fetchCategories() {
+  try {
+    categoryOptions.value = categoryNames(await categoryApi.list())
+  } catch (error) {
+    categoryOptions.value = fallbackCategories
+    console.error(error)
+  }
+}
 
 function buildQuery(filters) {
   const query = {}
@@ -129,6 +139,8 @@ function changePage(page) {
   currentPage.value = page
   router.replace({ path: '/items', query: buildQuery(appliedFilters) })
 }
+
+onMounted(fetchCategories)
 </script>
 
 <template>
@@ -156,7 +168,7 @@ function changePage(page) {
 
           <el-form-item label="成色">
             <el-checkbox-group v-model="filterForm.conditions">
-              <el-checkbox v-for="condition in conditions" :key="condition" :label="condition" />
+              <el-checkbox v-for="condition in conditions" :key="condition" :label="condition" :value="condition" />
             </el-checkbox-group>
           </el-form-item>
 
@@ -168,7 +180,7 @@ function changePage(page) {
 
           <el-form-item label="分类">
             <el-checkbox-group v-model="filterForm.categories">
-              <el-checkbox v-for="category in categories" :key="category" :label="category" />
+              <el-checkbox v-for="category in categoryOptions" :key="category" :label="category" :value="category" />
             </el-checkbox-group>
           </el-form-item>
 

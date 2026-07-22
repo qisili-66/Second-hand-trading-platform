@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -17,13 +17,23 @@ import {
   Warning,
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
+import { adminApi } from '../services/api'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const passwordDialog = ref(false)
+const passwordSaving = ref(false)
+const notificationLoading = ref(false)
+const dashboard = ref({
+  pendingReports: 0,
+  pendingDisputes: 0,
+  pendingOrders: 0,
+  pendingVerifiedUsers: 0,
+})
+const draftNoticeCount = ref(0)
 const passwordForm = ref({
-  oldPassword: 'admin123456',
+  oldPassword: '',
   newPassword: '',
   confirmPassword: '',
 })
@@ -39,13 +49,73 @@ const menuItems = [
   { path: '/admin/notices', label: '公告管理', icon: Document },
 ]
 
+const notificationItems = computed(() => [
+  {
+    count: Number(dashboard.value.pendingReports) || 0,
+    title: `${Number(dashboard.value.pendingReports) || 0} 条举报待处理`,
+    path: '/admin/reports',
+    active: Number(dashboard.value.pendingReports) > 0,
+  },
+  {
+    count: Number(dashboard.value.pendingDisputes) || 0,
+    title: `${Number(dashboard.value.pendingDisputes) || 0} 条纠纷等待仲裁`,
+    path: '/admin/orders',
+    active: Number(dashboard.value.pendingDisputes) > 0,
+  },
+  {
+    count: Number(dashboard.value.pendingVerifiedUsers) || 0,
+    title: `${Number(dashboard.value.pendingVerifiedUsers) || 0} 个用户待实名认证确认`,
+    path: '/admin/users',
+    active: Number(dashboard.value.pendingVerifiedUsers) > 0,
+  },
+  {
+    count: draftNoticeCount.value,
+    title: `${draftNoticeCount.value} 篇公告草稿待发布`,
+    path: '/admin/notices',
+    active: draftNoticeCount.value > 0,
+  },
+])
+
+const activeNotificationCount = computed(() =>
+  notificationItems.value.reduce((total, item) => total + item.count, 0),
+)
+
+const activeNotificationItems = computed(() => notificationItems.value.filter((item) => item.active))
+
+function resetPasswordForm() {
+  passwordForm.value.oldPassword = ''
+  passwordForm.value.newPassword = ''
+  passwordForm.value.confirmPassword = ''
+}
+
+async function loadNotifications() {
+  if (!authStore.isAdmin) return
+  notificationLoading.value = true
+  try {
+    const [dashboardResponse, noticesResponse] = await Promise.all([
+      adminApi.dashboard(),
+      adminApi.notices({ page: 1, pageSize: 100 }),
+    ])
+    dashboard.value = { ...dashboard.value, ...(dashboardResponse.data || {}) }
+    draftNoticeCount.value = (noticesResponse.data?.list || []).filter((notice) => notice.status !== 'PUBLISHED').length
+  } catch (error) {
+    ElMessage.error(error.message || '后台通知加载失败')
+  } finally {
+    notificationLoading.value = false
+  }
+}
+
 function logout() {
   authStore.logout()
   ElMessage.success('管理员已退出')
   router.push({ path: '/login', query: { tab: 'admin' } })
 }
 
-function savePassword() {
+async function savePassword() {
+  if (!passwordForm.value.oldPassword) {
+    ElMessage.warning('请输入当前密码')
+    return
+  }
   if (!passwordForm.value.newPassword || passwordForm.value.newPassword.length < 8) {
     ElMessage.warning('新密码至少 8 位')
     return
@@ -54,11 +124,23 @@ function savePassword() {
     ElMessage.warning('两次输入的新密码不一致')
     return
   }
-  passwordDialog.value = false
-  passwordForm.value.newPassword = ''
-  passwordForm.value.confirmPassword = ''
-  ElMessage.success('后台密码已修改')
+  passwordSaving.value = true
+  try {
+    await adminApi.changePassword({
+      oldPassword: passwordForm.value.oldPassword,
+      newPassword: passwordForm.value.newPassword,
+    })
+    passwordDialog.value = false
+    resetPasswordForm()
+    ElMessage.success('后台密码已修改，请记住新密码')
+  } catch (error) {
+    ElMessage.error(error.message || '后台密码修改失败')
+  } finally {
+    passwordSaving.value = false
+  }
 }
+
+onMounted(loadNotifications)
 </script>
 
 <template>
@@ -96,19 +178,20 @@ function savePassword() {
             <el-button :icon="House">返回前台</el-button>
           </RouterLink>
           <el-button v-if="authStore.isAdmin" :icon="Lock" @click="passwordDialog = true">修改后台密码</el-button>
-          <el-popover v-if="authStore.isAdmin" placement="bottom-end" width="280" trigger="click">
+          <el-popover v-if="authStore.isAdmin" placement="bottom-end" width="280" trigger="click" @show="loadNotifications">
             <template #reference>
-              <el-badge :value="5">
+              <el-badge :value="activeNotificationCount" :hidden="activeNotificationCount === 0">
                 <el-button :icon="Bell" circle />
               </el-badge>
             </template>
-            <div class="notice-panel">
+            <div v-loading="notificationLoading" class="notice-panel">
               <h3>后台通知</h3>
-              <ul>
-                <li>5 条举报待处理</li>
-                <li>3 条纠纷等待仲裁</li>
-                <li>公告草稿需要发布确认</li>
+              <ul v-if="activeNotificationItems.length">
+                <li v-for="item in activeNotificationItems" :key="item.title" @click="router.push(item.path)">
+                  {{ item.title }}
+                </li>
               </ul>
+              <el-empty v-else description="暂无待办" :image-size="72" />
             </div>
           </el-popover>
           <el-button v-if="authStore.isAdmin" type="primary" :icon="SwitchButton" @click="logout">退出登录</el-button>
@@ -143,7 +226,7 @@ function savePassword() {
       </el-form>
       <template #footer>
         <el-button @click="passwordDialog = false">取消</el-button>
-        <el-button type="primary" @click="savePassword">保存修改</el-button>
+        <el-button type="primary" :loading="passwordSaving" @click="savePassword">保存修改</el-button>
       </template>
     </el-dialog>
   </div>

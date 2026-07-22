@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { campuses } from '../../data/mock'
+import { campuses } from '../../data/options'
 import { adminApi } from '../../services/api'
 
 const noticeDialog = ref(false)

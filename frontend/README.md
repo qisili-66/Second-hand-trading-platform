@@ -1,44 +1,39 @@
-# fronted
+# frontend
 
-This template should help get you started developing with Vue 3 in Vite.
+Vue 3 + Vite frontend for the campus second-hand trading platform.
 
-## Recommended IDE Setup
+## Start
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
+```powershell
 npm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
 npm run dev
 ```
 
-### Compile and Minify for Production
+Vite is configured with `server.host = '0.0.0.0'`, so the terminal shows both a Local URL and a Network URL. Use the Network URL only from devices on the same LAN, and allow Node/Vite through Windows Firewall if another device cannot connect.
 
-```sh
+Default local entry:
+
+```text
+http://127.0.0.1:5173/
+```
+
+## Demo Accounts
+
+```text
+Admin: admin / admin123456
+User:  张益达 or ZYD2026001 / 123456
+```
+
+The admin account is for `/admin` only. The ordinary user account is for the marketplace/user-facing pages only.
+
+## Build
+
+```powershell
 npm run build
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+## Lint
 
-```sh
+```powershell
 npm run lint
 ```

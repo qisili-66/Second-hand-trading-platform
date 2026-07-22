@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { campuses, conditions } from '../../data/mock'
+import { campuses, conditions } from '../../data/options'
 import { adminApi } from '../../services/api'
 import { normalizeItemPage } from '../../services/normalizers'
 
@@ -82,8 +82,27 @@ async function loadCategories() {
   }
 }
 
-function batchAudit() {
-  ElMessage.success(`已审核 ${selectedRows.value.length || filteredProducts.value.length} 件商品`)
+function batchOnShelf() {
+  const rows = (selectedRows.value.length ? selectedRows.value : filteredProducts.value).filter(
+    (row) => row.status !== 'ON_SALE' && row.status !== 'SOLD',
+  )
+  if (!rows.length) {
+    ElMessage.warning('请选择可重新上架的商品')
+    return
+  }
+  ElMessageBox.confirm(`确认重新上架 ${rows.length} 件商品？`, '批量审核上架', {
+    confirmButtonText: '确认上架',
+    cancelButtonText: '取消',
+    type: 'warning',
+  }).then(async () => {
+    try {
+      await Promise.all(rows.map((row) => adminApi.onShelfItem(row.id)))
+      ElMessage.success(`已重新上架 ${rows.length} 件商品`)
+      loadItems()
+    } catch (error) {
+      ElMessage.error(error.message || '批量上架失败')
+    }
+  }).catch(() => {})
 }
 
 function batchRemove() {
@@ -124,7 +143,19 @@ function deleteItem(row) {
 }
 
 function auditItem(row) {
-  ElMessage.success(`商品「${row.title}」已通过审核`)
+  ElMessageBox.confirm(`确认重新上架「${row.title}」？`, '审核上架', {
+    confirmButtonText: '确认上架',
+    cancelButtonText: '取消',
+    type: 'warning',
+  }).then(async () => {
+    try {
+      await adminApi.onShelfItem(row.id)
+      ElMessage.success('商品已重新上架')
+      loadItems()
+    } catch (error) {
+      ElMessage.error(error.message || '商品上架失败')
+    }
+  }).catch(() => {})
 }
 
 function openCreateDialog() {
@@ -247,7 +278,7 @@ onMounted(() => {
             <el-date-picker v-model="filters.date" type="daterange" start-placeholder="开始日期" end-placeholder="结束日期" />
           </el-form-item>
           <el-form-item label="批量操作">
-            <el-button type="primary" @click="batchAudit">批量审核</el-button>
+            <el-button type="primary" @click="batchOnShelf">批量审核上架</el-button>
           </el-form-item>
         </div>
       </el-form>
@@ -285,7 +316,7 @@ onMounted(() => {
           <template #default="{ row }">
             <el-button link type="warning" @click="removeItem(row)">下架违规商品</el-button>
             <el-button link type="danger" @click="deleteItem(row)">删除商品</el-button>
-            <el-button v-if="row.status === '违规'" link type="primary" @click="auditItem(row)">审核</el-button>
+            <el-button v-if="row.status !== 'ON_SALE' && row.status !== 'SOLD'" link type="primary" @click="auditItem(row)">审核上架</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -342,8 +373,8 @@ onMounted(() => {
           </el-form-item>
           <el-form-item label="交易模式">
             <el-checkbox-group v-model="createForm.tradeModes">
-              <el-checkbox label="面交" />
-              <el-checkbox label="线上担保" />
+              <el-checkbox label="面交" value="面交" />
+              <el-checkbox label="线上担保" value="线上担保" />
             </el-checkbox-group>
           </el-form-item>
           <el-form-item label="支持置换">

@@ -1,8 +1,11 @@
 import axios from 'axios'
 
+const DEFAULT_TIMEOUT_MS = 8000
+const AGENT_TIMEOUT_MS = 30000
+
 export const api = axios.create({
   baseURL: '/api',
-  timeout: 8000,
+  timeout: DEFAULT_TIMEOUT_MS,
 })
 
 api.interceptors.request.use((config) => {
@@ -39,6 +42,8 @@ export const userApi = {
   getMyItems: (params) => api.get('/users/me/items', { params }),
   getMyFavorites: (params) => api.get('/users/me/favorites', { params }),
   getMyNotifications: (params) => api.get('/users/me/notifications', { params }),
+  getMyPurchases: (params) => api.get('/users/me/purchases', { params }),
+  getMyExchanges: (params) => api.get('/users/me/exchanges', { params }),
   getReviews: (userId, params) => api.get(`/users/${userId}/reviews`, { params }),
 }
 
@@ -113,8 +118,14 @@ export const chatApi = {
   sendMessage: (chatId, data) => api.post(`/chats/${chatId}/messages`, data),
 }
 
+export const agentApi = {
+  buyer: (data) => api.post('/agent/buyer', data, { timeout: AGENT_TIMEOUT_MS }),
+  seller: (data) => api.post('/agent/seller', data, { timeout: AGENT_TIMEOUT_MS }),
+}
+
 export const adminApi = {
   dashboard: () => api.get('/admin/dashboard'),
+  changePassword: (data) => api.patch('/admin/password', data),
   users: (params) => api.get('/admin/users', { params }),
   disableUser: (userId) => api.patch(`/admin/users/${userId}/disable`),
   enableUser: (userId) => api.patch(`/admin/users/${userId}/enable`),

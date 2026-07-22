@@ -5,8 +5,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import OrderReview from '../../components/OrderReview.vue'
 import ProductListItem from '../../components/product/ProductListItem.vue'
 import ReviewList from '../../components/ReviewList.vue'
-import { itemApi, orderApi, userApi } from '../../services/api'
-import { normalizeItemPage, normalizeOrder } from '../../services/normalizers'
+import { itemApi, orderApi, swapApi, userApi, wantedApi } from '../../services/api'
+import { normalizeExchangePage, normalizeItemPage, normalizeOrder, normalizePurchasePage } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
@@ -19,6 +19,8 @@ const myProducts = ref([])
 const favoriteProducts = ref([])
 const orders = ref([])
 const notifications = ref([])
+const myPurchases = ref([])
+const myExchanges = ref([])
 const loadingItems = ref(false)
 const reviewDialogVisible = ref(false)
 const reviewOrder = ref(null)
@@ -33,6 +35,10 @@ const menuItems = [
   { key: 'swap', label: '以物换物' },
   { key: 'privacy', label: '隐私设置' },
 ]
+
+if (route.query.tab && menuItems.some((item) => item.key === route.query.tab)) {
+  activeMenu.value = route.query.tab
+}
 
 const privacy = ref({
   phone: false,
@@ -88,6 +94,7 @@ watch(
       activeItemStatus.value = query.itemStatus
     }
   },
+  { immediate: true },
 )
 
 function goRegister() {
@@ -112,12 +119,15 @@ async function fetchUserItems() {
     myProducts.value = normalizeItemPage(itemsResponse).list
     favoriteProducts.value = normalizeItemPage(favoritesResponse).list
     orders.value = (ordersResponse.data?.list || []).map(normalizeOrder)
+    await fetchBazaarItems()
     await fetchNotifications()
   } catch (error) {
     myProducts.value = []
     favoriteProducts.value = []
     orders.value = []
     notifications.value = []
+    myPurchases.value = []
+    myExchanges.value = []
     console.error(error)
   } finally {
     loadingItems.value = false
@@ -166,6 +176,21 @@ async function fetchNotifications() {
   }
 }
 
+async function fetchBazaarItems() {
+  try {
+    const [purchasesResponse, exchangesResponse] = await Promise.all([
+      userApi.getMyPurchases({ page: 1, pageSize: 100 }),
+      userApi.getMyExchanges({ page: 1, pageSize: 100 }),
+    ])
+    myPurchases.value = normalizePurchasePage(purchasesResponse).list
+    myExchanges.value = normalizeExchangePage(exchangesResponse).list
+  } catch (error) {
+    myPurchases.value = []
+    myExchanges.value = []
+    console.error(error)
+  }
+}
+
 function statusText(status) {
   const map = {
     ON_SALE: '上架中',
@@ -182,6 +207,22 @@ function statusType(status) {
   if (status === 'REMOVED') return 'danger'
   if (status === 'SOLD' || status === 'RESERVED') return 'info'
   return 'warning'
+}
+
+function bazaarStatusText(status) {
+  const map = {
+    OPEN: '进行中',
+    CLOSED: '已关闭',
+    MATCHED: '已换成',
+    CANCELLED: '已取消',
+  }
+  return map[status] || status || '未知'
+}
+
+function bazaarStatusType(status) {
+  if (status === 'OPEN') return 'success'
+  if (status === 'MATCHED') return 'primary'
+  return 'info'
 }
 
 function orderStatusText(status) {
@@ -295,6 +336,41 @@ function deleteProduct(product) {
 
 function viewProduct(product) {
   router.push(`/items/${product.id}`)
+}
+
+function viewExchangeItem(exchange) {
+  const itemId = exchange.itemId || exchange.item?.itemId
+  if (itemId) router.push(`/items/${itemId}`)
+}
+
+async function closePurchase(purchase) {
+  try {
+    await wantedApi.close(purchase.id)
+    ElMessage.success('求购已关闭')
+    await fetchBazaarItems()
+  } catch (error) {
+    ElMessage.error(error.message || '求购关闭失败')
+  }
+}
+
+async function markExchangeMatched(exchange) {
+  try {
+    await swapApi.accept(exchange.id)
+    ElMessage.success('置换已标记为已换成')
+    await fetchBazaarItems()
+  } catch (error) {
+    ElMessage.error(error.message || '置换状态更新失败')
+  }
+}
+
+async function cancelExchange(exchange) {
+  try {
+    await swapApi.cancel(exchange.id)
+    ElMessage.success('置换已取消')
+    await fetchBazaarItems()
+  } catch (error) {
+    ElMessage.error(error.message || '置换取消失败')
+  }
 }
 
 async function acceptOrder(order) {
@@ -540,12 +616,56 @@ function openReview(order) {
             <ReviewList :user-id="currentUserId" />
           </div>
 
-          <div v-else-if="activeMenu === 'wanted'">
-            <el-empty description="暂未发布求购" />
+          <div v-else-if="activeMenu === 'wanted'" class="profile-item-list">
+            <div v-for="purchase in myPurchases" :key="purchase.id" class="profile-item-row profile-bazaar-row">
+              <div class="profile-bazaar-icon">求</div>
+              <div class="profile-item-main">
+                <div class="profile-item-title">
+                  <strong>{{ purchase.title }}</strong>
+                  <el-tag :type="bazaarStatusType(purchase.status)">{{ bazaarStatusText(purchase.status) }}</el-tag>
+                </div>
+                <p>{{ purchase.description || '暂无补充描述' }}</p>
+                <div class="profile-item-meta">
+                  <span>{{ purchase.budget }}</span>
+                  <span>{{ purchase.categoryName || '未选分类' }}</span>
+                  <span>{{ purchase.campus }}</span>
+                  <span>{{ purchase.createdAt }}</span>
+                </div>
+              </div>
+              <div class="profile-item-actions">
+                <el-button v-if="purchase.status === 'OPEN'" type="warning" plain @click="closePurchase(purchase)">
+                  关闭求购
+                </el-button>
+                <el-button type="primary" plain @click="router.push('/wanted')">去广场</el-button>
+              </div>
+            </div>
+            <el-empty v-if="myPurchases.length === 0" description="暂未发布求购" />
           </div>
 
-          <div v-else-if="activeMenu === 'swap'" class="product-list">
-            <el-empty description="暂无置换商品" />
+          <div v-else-if="activeMenu === 'swap'" class="profile-item-list">
+            <div v-for="exchange in myExchanges" :key="exchange.id" class="profile-item-row profile-bazaar-row">
+              <el-image class="profile-item-thumb" :src="exchange.image" fit="cover" />
+              <div class="profile-item-main">
+                <div class="profile-item-title">
+                  <strong>{{ exchange.title }}</strong>
+                  <el-tag :type="bazaarStatusType(exchange.status)">{{ bazaarStatusText(exchange.status) }}</el-tag>
+                </div>
+                <p>想换：{{ exchange.expectedTitle }}</p>
+                <div class="profile-item-meta">
+                  <span>{{ exchange.campus || '不限校区' }}</span>
+                  <span>{{ exchange.exchangeNo || '无编号' }}</span>
+                  <span>{{ exchange.createdAt }}</span>
+                </div>
+              </div>
+              <div class="profile-item-actions">
+                <el-button v-if="exchange.itemId" type="primary" plain @click="viewExchangeItem(exchange)">查看商品</el-button>
+                <el-button v-if="exchange.status === 'OPEN'" type="success" plain @click="markExchangeMatched(exchange)">
+                  已换成
+                </el-button>
+                <el-button v-if="exchange.status === 'OPEN'" type="warning" plain @click="cancelExchange(exchange)">取消</el-button>
+              </div>
+            </div>
+            <el-empty v-if="myExchanges.length === 0" description="暂无置换商品" />
           </div>
 
           <div v-else class="privacy-list">
