@@ -61,7 +61,9 @@ async function fetchRecommendedProducts() {
     products.value = normalizeItemPage(response).list
   } catch (error) {
     products.value = []
-    console.error(error)
+    if (!String(error.message || '').includes('timeout')) {
+      console.warn('首页商品列表加载失败', error.message || error)
+    }
   } finally {
     loading.value = false
   }

@@ -68,14 +68,14 @@ public class ItemService {
 		LambdaQueryWrapper<ItemEntity> wrapper = Wrappers.lambdaQuery(ItemEntity.class)
 				.eq(ItemEntity::getDeleted, 0)
 				.orderByDesc(ItemEntity::getCreatedAt);
-		return itemMapper.selectList(wrapper).stream().map(this::itemRow).toList();
+		return itemRows(itemMapper.selectList(wrapper));
 	}
 
 	public PageResponse<Map<String, Object>> items(ItemSearchCriteria criteria) {
 		int safePage = Math.max(1, criteria.page());
 		int safePageSize = Math.max(1, Math.min(criteria.pageSize(), MAX_PAGE_SIZE));
 		Page<ItemEntity> page = itemMapper.selectPage(Page.of(safePage, safePageSize), itemWrapper(criteria, true));
-		List<Map<String, Object>> rows = page.getRecords().stream().map(this::itemRow).toList();
+		List<Map<String, Object>> rows = itemRows(page.getRecords());
 		return PageResponse.of(rows, (int) page.getCurrent(), (int) page.getSize(), page.getTotal());
 	}
 
@@ -497,19 +497,37 @@ public class ItemService {
 	}
 
 	private Map<String, Object> itemRow(ItemEntity item) {
-		List<String> imageUrls = jdbcTemplate.queryForList("""
-				SELECT image_url
-				FROM item_images
-				WHERE item_id = ?
-				ORDER BY sort_order, id
-				""", String.class, item.getId());
+		return itemRows(List.of(item)).get(0);
+	}
+
+	private List<Map<String, Object>> itemRows(List<ItemEntity> items) {
+		if (items == null || items.isEmpty()) {
+			return List.of();
+		}
+
+		List<Long> itemIds = items.stream().map(ItemEntity::getId).filter(id -> id != null).distinct().toList();
+		List<Long> categoryIds = items.stream().map(ItemEntity::getCategoryId).filter(id -> id != null).distinct().toList();
+		List<Long> sellerIds = items.stream().map(ItemEntity::getSellerId).filter(id -> id != null).distinct().toList();
+
+		Map<Long, List<String>> imagesByItemId = imageUrlsByItemId(itemIds);
+		Map<Long, String> categoryNamesById = categoryNamesById(categoryIds);
+		Map<Long, Map<String, Object>> sellersById = sellersById(sellerIds);
+
+		return items.stream()
+				.map(item -> itemRow(item, imagesByItemId, categoryNamesById, sellersById))
+				.toList();
+	}
+
+	private Map<String, Object> itemRow(ItemEntity item, Map<Long, List<String>> imagesByItemId,
+			Map<Long, String> categoryNamesById, Map<Long, Map<String, Object>> sellersById) {
+		List<String> imageUrls = imagesByItemId.getOrDefault(item.getId(), List.of());
 		String coverUrl = imageUrls.isEmpty() ? "" : imageUrls.get(0);
 
 		Map<String, Object> row = new LinkedHashMap<>();
 		row.put("itemId", item.getId());
 		row.put("title", item.getTitle());
 		row.put("description", item.getDescription());
-		row.put("category", categoryRow(item.getCategoryId()));
+		row.put("category", categoryRow(item.getCategoryId(), categoryNamesById.getOrDefault(item.getCategoryId(), "")));
 		row.put("price", item.getPrice());
 		row.put("originalPrice", item.getOriginalPrice());
 		row.put("condition", item.getConditionLevel());
@@ -521,7 +539,7 @@ public class ItemService {
 		row.put("swapSupported", Integer.valueOf(1).equals(item.getSwapSupported()));
 		row.put("coverUrl", coverUrl);
 		row.put("imageUrls", imageUrls);
-		row.put("seller", sellerRow(item.getSellerId(), item.getCampus()));
+		row.put("seller", sellerRow(sellersById.get(item.getSellerId()), item.getSellerId(), item.getCampus()));
 		row.put("favoriteCount", item.getFavoriteCount() == null ? 0 : item.getFavoriteCount());
 		row.put("viewCount", item.getViewCount() == null ? 0 : item.getViewCount());
 		row.put("createdAt", timeString(item.getCreatedAt()));
@@ -530,9 +548,13 @@ public class ItemService {
 	}
 
 	private Map<String, Object> categoryRow(Long categoryId) {
+		return categoryRow(categoryId, categoryName(categoryId));
+	}
+
+	private Map<String, Object> categoryRow(Long categoryId, String name) {
 		Map<String, Object> row = new LinkedHashMap<>();
 		row.put("categoryId", categoryId);
-		row.put("name", categoryName(categoryId));
+		row.put("name", name == null ? "" : name);
 		return row;
 	}
 
@@ -544,14 +566,7 @@ public class ItemService {
 				LIMIT 1
 				""", sellerId);
 		if (!users.isEmpty()) {
-			Map<String, Object> user = users.get(0);
-			Map<String, Object> row = new LinkedHashMap<>();
-			row.put("userId", user.get("userId"));
-			row.put("nickname", user.get("nickname"));
-			row.put("avatarUrl", user.get("avatarUrl") == null ? "" : user.get("avatarUrl"));
-			row.put("campus", user.get("campus") == null ? fallbackCampus : user.get("campus"));
-			row.put("creditScore", user.get("creditScore") == null ? 0 : user.get("creditScore"));
-			return row;
+			return sellerRow(users.get(0), sellerId, fallbackCampus);
 		}
 
 		Map<String, Object> row = new LinkedHashMap<>();
@@ -561,6 +576,76 @@ public class ItemService {
 		row.put("campus", fallbackCampus);
 		row.put("creditScore", 0);
 		return row;
+	}
+
+	private Map<String, Object> sellerRow(Map<String, Object> user, Long sellerId, String fallbackCampus) {
+		if (user == null) {
+			return sellerRow(sellerId, fallbackCampus);
+		}
+		Map<String, Object> row = new LinkedHashMap<>();
+		row.put("userId", user.get("userId"));
+		row.put("nickname", user.get("nickname"));
+		row.put("avatarUrl", user.get("avatarUrl") == null ? "" : user.get("avatarUrl"));
+		row.put("campus", user.get("campus") == null ? fallbackCampus : user.get("campus"));
+		row.put("creditScore", user.get("creditScore") == null ? 0 : user.get("creditScore"));
+		return row;
+	}
+
+	private Map<Long, List<String>> imageUrlsByItemId(List<Long> itemIds) {
+		Map<Long, List<String>> result = new LinkedHashMap<>();
+		if (itemIds.isEmpty()) {
+			return result;
+		}
+
+		jdbcTemplate.queryForList("""
+				SELECT item_id AS itemId, image_url AS imageUrl
+				FROM item_images
+				WHERE item_id IN (%s)
+				ORDER BY item_id, sort_order, id
+				""".formatted(placeholders(itemIds.size())), itemIds.toArray()).forEach(row -> {
+			Long itemId = optionalLong(row.get("itemId"));
+			String imageUrl = String.valueOf(row.get("imageUrl") == null ? "" : row.get("imageUrl"));
+			if (StringUtils.hasText(imageUrl)) {
+				result.computeIfAbsent(itemId, key -> new ArrayList<>()).add(imageUrl);
+			}
+		});
+		return result;
+	}
+
+	private Map<Long, String> categoryNamesById(List<Long> categoryIds) {
+		Map<Long, String> result = new LinkedHashMap<>();
+		if (categoryIds.isEmpty()) {
+			return result;
+		}
+
+		jdbcTemplate.queryForList("""
+				SELECT id AS categoryId, name
+				FROM categories
+				WHERE id IN (%s)
+				""".formatted(placeholders(categoryIds.size())), categoryIds.toArray()).forEach(row -> {
+			Long categoryId = optionalLong(row.get("categoryId"));
+			result.put(categoryId, String.valueOf(row.get("name") == null ? "" : row.get("name")));
+		});
+		return result;
+	}
+
+	private Map<Long, Map<String, Object>> sellersById(List<Long> sellerIds) {
+		Map<Long, Map<String, Object>> result = new LinkedHashMap<>();
+		if (sellerIds.isEmpty()) {
+			return result;
+		}
+
+		jdbcTemplate.queryForList("""
+				SELECT id AS userId, nickname, avatar_url AS avatarUrl, campus, credit_score AS creditScore
+				FROM users
+				WHERE deleted = 0 AND id IN (%s)
+				""".formatted(placeholders(sellerIds.size())), sellerIds.toArray())
+				.forEach(row -> result.put(optionalLong(row.get("userId")), row));
+		return result;
+	}
+
+	private String placeholders(int size) {
+		return java.util.stream.IntStream.range(0, size).mapToObj(index -> "?").collect(Collectors.joining(","));
 	}
 
 	private Map<String, Object> commentRow(ItemCommentEntity comment) {

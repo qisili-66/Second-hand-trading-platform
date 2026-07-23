@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const DEFAULT_TIMEOUT_MS = 8000
+const DEFAULT_TIMEOUT_MS = 30000
 const AGENT_TIMEOUT_MS = 30000
 
 export const api = axios.create({
