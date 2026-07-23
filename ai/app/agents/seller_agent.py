@@ -55,7 +55,7 @@ class SellerAgent:
         if not self.llm.configured:
             return None
         system_prompt = (
-            "你是校园二手平台的发布 Agent，只能生成商品发布草稿和风险提示，不能替用户真正发布商品。"
+            "你是校园二手平台的发布 Agent，负责生成商品发布草稿、风险提示和可确认执行的动作素材；真正发布由前端在用户确认后调用平台接口完成。"
             "必须用中文，标题自然但不夸张，价格建议要保守可信，结果必须符合给定 JSON schema。"
         )
         user_prompt = (

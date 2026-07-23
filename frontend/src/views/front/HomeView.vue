@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Close, EditPen, Goods, Promotion } from '@element-plus/icons-vue'
 import ProductGridCard from '../../components/product/ProductGridCard.vue'
-import { agentApi, itemApi } from '../../services/api'
+import { agentApi, chatApi, itemApi, orderApi, swapApi, userApi, wantedApi } from '../../services/api'
 import {
   agentHistoryUserId,
   agentTurnSummary,
@@ -29,6 +29,7 @@ const agentOpen = ref(false)
 const agentMode = ref('')
 const agentInput = ref('')
 const agentLoading = ref(false)
+const agentActionLoading = ref('')
 const agentResult = ref(null)
 const agentError = ref('')
 const agentHistory = ref([])
@@ -192,6 +193,155 @@ function searchSimilarFromAgent(item = {}) {
   if (item.campus || agentResult.value?.parsed_need?.campus) query.campus = item.campus || agentResult.value.parsed_need.campus
   if (agentResult.value?.parsed_need?.budget) query.maxPrice = agentResult.value.parsed_need.budget
   router.push({ path: '/items', query })
+}
+
+function ensureAgentLogin(actionText) {
+  if (authStore.isLoggedIn) return true
+  ElMessageBox.confirm(`${actionText}需要先登录，登录后 Agent 会继续把草稿带到对应流程。`, '需要登录', {
+    confirmButtonText: '前往登录',
+    cancelButtonText: '取消',
+    type: 'warning',
+  }).then(() => router.push('/login')).catch(() => {})
+  return false
+}
+
+function inferPriceFromRange(value = '') {
+  const numbers = String(value).match(/\d+(?:\.\d+)?/g)?.map(Number).filter(Number.isFinite) || []
+  if (numbers.length === 0) return null
+  if (numbers.length === 1) return numbers[0]
+  return Math.round((numbers[0] + numbers[1]) / 2)
+}
+
+async function runAgentAction(key, action) {
+  if (agentActionLoading.value) return
+  agentActionLoading.value = key
+  try {
+    await action()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error.message || 'Agent 执行动作失败')
+    }
+  } finally {
+    agentActionLoading.value = ''
+  }
+}
+
+async function confirmAgentAction(title, message) {
+  await ElMessageBox.confirm(message, title, {
+    confirmButtonText: '确认执行',
+    cancelButtonText: '取消',
+    type: 'warning',
+  })
+}
+
+async function agentSendChat(item = {}) {
+  const itemId = item.item_id || item.itemId || item.id
+  if (!itemId) return
+  if (!ensureAgentLogin('Agent 代发私聊')) return
+  await runAgentAction(`chat-${itemId}`, async () => {
+    await confirmAgentAction('确认由 Agent 发送私聊？', `Agent 将基于《${item.title || '该商品'}》创建会话，并发送推荐的咨询草稿。`)
+    const response = await chatApi.create({ itemId })
+    const chat = response.data || response
+    await chatApi.sendMessage(chat.chatId || chat.id, {
+      messageType: 'TEXT',
+      content: item.chat_draft || `同学你好，我对《${item.title || '这件商品'}》感兴趣，想了解一下成色、配件和方便面交的时间。`,
+    })
+    ElMessage.success('Agent 已发送私聊草稿')
+    router.push({ path: '/chats', query: { chatId: chat.chatId || chat.id } })
+  })
+}
+
+async function agentCreateOrder(item = {}) {
+  const itemId = item.item_id || item.itemId || item.id
+  if (!itemId) return
+  if (!ensureAgentLogin('Agent 预约商品')) return
+  await runAgentAction(`order-${itemId}`, async () => {
+    await confirmAgentAction('确认由 Agent 创建预约？', `Agent 将为《${item.title || '该商品'}》创建订单预约，后续仍需要卖家接单和你确认交易。`)
+    const response = await orderApi.create({
+      itemId,
+      tradeMode: 'OFFLINE',
+      message: item.chat_draft || `我想预约《${item.title || '这件商品'}》，方便的话请确认成色和面交时间。`,
+    })
+    const order = response.data || response
+    ElMessage.success('Agent 已创建订单预约')
+    router.push({ path: '/orders', query: { orderId: order.orderId || order.id } })
+  })
+}
+
+async function agentPublishWanted(draft) {
+  if (!draft) return
+  if (!ensureAgentLogin('Agent 发布求购')) return
+  await runAgentAction('wanted', async () => {
+    await confirmAgentAction('确认由 Agent 发布求购？', `Agent 将直接发布求购《${draft.title}》，发布后可在求购广场查看和关闭。`)
+    const response = await wantedApi.create({
+      title: draft.title,
+      description: draft.description || '',
+      campus: draft.campus || authStore.user?.campus || '校本部',
+      budgetMin: draft.budget_min || null,
+      budgetMax: draft.budget_max || null,
+    })
+    agentResult.value.created_wanted = response.data || response
+    ElMessage.success('Agent 已发布求购')
+    router.push('/wanted')
+  })
+}
+
+async function agentPublishSwap(draft) {
+  if (!draft) return
+  if (!ensureAgentLogin('Agent 发布换物')) return
+  await runAgentAction('swap', async () => {
+    const itemsResponse = await userApi.getMyItems({ page: 1, pageSize: 100 })
+    const myOnSaleItems = normalizeItemPage(itemsResponse).list.filter((item) => item.status === 'ON_SALE')
+    if (myOnSaleItems.length !== 1) {
+      useSwapDraft(draft)
+      ElMessage.info(myOnSaleItems.length === 0 ? '你还没有可用于换物的在售商品，先去发布一件闲置。' : '检测到多件在售商品，请在换物页选择拿来交换的商品。')
+      return
+    }
+    await confirmAgentAction('确认由 Agent 发布换物？', `Agent 将使用《${myOnSaleItems[0].title}》发布换物需求：${draft.expected_title || draft.title}。`)
+    const response = await swapApi.create({
+      itemId: myOnSaleItems[0].id,
+      expectedTitle: draft.expected_title || draft.title,
+      targetCategory: draft.target_category || draft.category || null,
+      description: draft.description || '',
+      campus: draft.campus || myOnSaleItems[0].campus || authStore.user?.campus || '校本部',
+    })
+    agentResult.value.created_swap = response.data || response
+    ElMessage.success('Agent 已发布换物需求')
+    router.push('/swap')
+  })
+}
+
+async function agentPublishItem(result) {
+  const draft = result?.draft
+  if (!draft) return
+  if (!ensureAgentLogin('Agent 发布商品')) return
+  await runAgentAction('publish-item', async () => {
+    const price = inferPriceFromRange(draft.price_range)
+    if (price === null) {
+      ElMessage.warning('Agent 草稿缺少可识别价格，请先填入发布页确认。')
+      usePublishDraft(result)
+      return
+    }
+    await confirmAgentAction('确认由 Agent 直接发布商品？', `Agent 将以 ${price} 元发布《${draft.title}》。当前没有图片会先无图上架，你也可以取消后去发布页补图。`)
+    const response = await itemApi.create({
+      title: draft.title,
+      description: draft.description,
+      price,
+      originalPrice: null,
+      condition: draft.condition,
+      category: draft.category,
+      campus: draft.campus_suggestion || authStore.user?.campus || '校本部',
+      dormitory: draft.trade_place_suggestion || '',
+      tradeModes: ['面交'],
+      swapSupported: Boolean(draft.swap_supported),
+      status: '上架',
+      imageUrls: [],
+    })
+    const item = response.data || response
+    agentResult.value.created_item = item
+    ElMessage.success('Agent 已发布商品')
+    router.push(`/items/${item.itemId || item.id}`)
+  })
 }
 
 function useWantedDraft(draft) {
@@ -407,6 +557,8 @@ onMounted(() => {
                 <small>建议砍价：{{ item.bargain_range }}</small>
                 <div class="agent-action-row">
                   <el-button v-if="item.item_id" text type="primary" @click="goAgentItem(item)">查看商品</el-button>
+                  <el-button v-if="item.item_id" text type="primary" :loading="agentActionLoading === `chat-${item.item_id}`" @click="agentSendChat(item)">Agent 发私聊</el-button>
+                  <el-button v-if="item.item_id" text :loading="agentActionLoading === `order-${item.item_id}`" @click="agentCreateOrder(item)">Agent 预约</el-button>
                   <el-button text type="primary" @click="copyAgentText(item.chat_draft)">复制私聊草稿</el-button>
                   <el-button text @click="searchSimilarFromAgent(item)">搜相似</el-button>
                 </div>
@@ -420,6 +572,7 @@ onMounted(() => {
                 <p>{{ agentResult.wanted_draft.description }}</p>
                 <div class="agent-action-row">
                   <el-button text type="primary" @click="useWantedDraft(agentResult.wanted_draft)">去求购广场</el-button>
+                  <el-button text type="primary" :loading="agentActionLoading === 'wanted'" @click="agentPublishWanted(agentResult.wanted_draft)">Agent 发布求购</el-button>
                   <el-button text @click="copyAgentText(agentResult.wanted_draft.description)">复制求购草稿</el-button>
                   <el-button text @click="searchSimilarFromAgent()">搜相似商品</el-button>
                 </div>
@@ -433,6 +586,7 @@ onMounted(() => {
                 <p>{{ agentResult.swap_draft.description }}</p>
                 <div class="agent-action-row">
                   <el-button text type="primary" @click="useSwapDraft(agentResult.swap_draft)">去换物专区</el-button>
+                  <el-button text type="primary" :loading="agentActionLoading === 'swap'" @click="agentPublishSwap(agentResult.swap_draft)">Agent 发布换物</el-button>
                   <el-button text @click="copyAgentText(agentResult.swap_draft.description)">复制换物说明</el-button>
                   <el-button text @click="router.push({ path: '/items', query: { keyword: agentResult.swap_draft.expected_title } })">搜可换商品</el-button>
                 </div>
@@ -453,6 +607,7 @@ onMounted(() => {
                 <small>建议地点：{{ agentResult.draft.trade_place_suggestion }}</small>
                 <div class="agent-action-row">
                   <el-button text type="primary" @click="usePublishDraft(agentResult)">填入发布页</el-button>
+                  <el-button text type="primary" :loading="agentActionLoading === 'publish-item'" @click="agentPublishItem(agentResult)">Agent 直接发布</el-button>
                   <el-button text @click="copyAgentText(agentResult.draft.description)">复制描述</el-button>
                 </div>
               </article>
