@@ -123,8 +123,10 @@ public class ReviewService {
 				: BigDecimal.valueOf(averageValue instanceof Number number ? number.doubleValue() : 0);
 		row.put("userId", userId);
 		row.put("averageRating", average.setScale(1, RoundingMode.HALF_UP));
-		row.put("reviewCount", stats.get("reviewCount"));
-		row.put("creditScore", userService.getUserCreditScore(userId));
+		Number reviewCount = stats.get("reviewCount") instanceof Number number ? number : 0;
+		Integer creditScore = userService.getUserCreditScore(userId);
+		row.put("reviewCount", reviewCount);
+		row.put("creditScore", reviewCount.longValue() > 0 ? Math.min(Math.max(creditScore == null ? 0 : creditScore, 0), 100) : 0);
 		row.put("rating5", ratingCount(userId, 5));
 		row.put("rating4", ratingCount(userId, 4));
 		row.put("rating3", ratingCount(userId, 3));

@@ -1,17 +1,26 @@
 const STORAGE_PREFIX = 'campus-agent-history'
+const DRAFT_PREFIX = 'campus-agent-draft'
 const MAX_RECORDS = 20
 
 function userKey(userId) {
   return `${STORAGE_PREFIX}:${userId || 'guest'}`
 }
 
-function safeParse(raw) {
+function draftKey(userId) {
+  return `${DRAFT_PREFIX}:${userId || 'guest'}`
+}
+
+function parseJson(raw, fallback) {
   try {
-    const value = JSON.parse(raw)
-    return Array.isArray(value) ? value : []
+    return JSON.parse(raw) ?? fallback
   } catch (error) {
-    return []
+    return fallback
   }
+}
+
+function safeParse(raw) {
+  const value = parseJson(raw, [])
+  return Array.isArray(value) ? value : []
 }
 
 function makeId() {
@@ -49,6 +58,35 @@ export function saveAgentTurn(userId, turn) {
 export function clearAgentHistory(userId) {
   localStorage.removeItem(userKey(userId))
   return []
+}
+
+export function readAgentDraft(userId) {
+  const draft = parseJson(localStorage.getItem(draftKey(userId)), null)
+  if (!draft || !draft.mode || typeof draft.message !== 'string') return null
+  return {
+    mode: draft.mode,
+    message: draft.message,
+    updatedAt: draft.updatedAt || '',
+  }
+}
+
+export function saveAgentDraft(userId, draft) {
+  if (!draft?.mode && !draft?.message) {
+    clearAgentDraft(userId)
+    return null
+  }
+  const next = {
+    mode: draft.mode || '',
+    message: String(draft.message || '').slice(0, 1000),
+    updatedAt: new Date().toISOString(),
+  }
+  localStorage.setItem(draftKey(userId), JSON.stringify(next))
+  return next
+}
+
+export function clearAgentDraft(userId) {
+  localStorage.removeItem(draftKey(userId))
+  return null
 }
 
 export function agentTurnTitle(record) {

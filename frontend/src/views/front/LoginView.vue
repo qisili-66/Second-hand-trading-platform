@@ -98,7 +98,7 @@ async function adminLogin() {
     <section class="auth-layout auth-layout-single">
       <el-card class="auth-card simple-auth-card" shadow="never">
         <div class="simple-auth-title">
-          <p>校园二手闲置网</p>
+          <p>CampusAgent 智能校园闲置平台</p>
           <h1>登录</h1>
         </div>
 

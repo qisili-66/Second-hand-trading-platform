@@ -19,10 +19,12 @@ const reviews = ref([])
 const stats = ref({
   averageRating: 0,
   reviewCount: 0,
-  creditScore: 100,
+  creditScore: 0,
 })
 
-const averageRating = computed(() => Number(stats.value.averageRating) || 0)
+const reviewCount = computed(() => Number(stats.value.reviewCount) || 0)
+const averageRating = computed(() => (reviewCount.value > 0 ? Number(stats.value.averageRating) || 0 : 0))
+const creditScore = computed(() => Math.min(Math.max(Number(stats.value.creditScore) || 0, 0), 100))
 
 watch(
   () => props.userId,
@@ -33,7 +35,7 @@ watch(
 async function fetchReviews() {
   if (!props.userId) {
     reviews.value = []
-    stats.value = { averageRating: 0, reviewCount: 0, creditScore: 100 }
+    stats.value = { averageRating: 0, reviewCount: 0, creditScore: 0 }
     return
   }
 
@@ -62,11 +64,11 @@ async function fetchReviews() {
         <span>平均评分</span>
       </div>
       <div>
-        <strong>{{ stats.reviewCount || 0 }}</strong>
+        <strong>{{ reviewCount }}</strong>
         <span>评价数</span>
       </div>
       <div>
-        <strong>{{ stats.creditScore || 100 }}</strong>
+        <strong>{{ creditScore }}</strong>
         <span>信用分</span>
       </div>
       <el-rate :model-value="averageRating" disabled allow-half />

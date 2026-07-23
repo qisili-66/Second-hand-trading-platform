@@ -10,8 +10,11 @@ import {
   agentTurnSummary,
   agentTurnTime,
   agentTurnTitle,
+  clearAgentDraft,
   clearAgentHistory,
+  readAgentDraft,
   readAgentHistory,
+  saveAgentDraft,
   saveAgentTurn,
 } from '../../services/agentHistory'
 import { normalizeItemPage } from '../../services/normalizers'
@@ -89,6 +92,22 @@ function loadAgentHistory() {
   agentHistory.value = readAgentHistory(agentUserId.value)
 }
 
+function defaultAgentPrompt(mode) {
+  return mode === 'buyer'
+    ? '我想买一个考研用的 iPad，预算 1500 左右，最好校本部面交。'
+    : '出一个宿舍小冰箱，八成新，毕业搬宿舍用不上了。'
+}
+
+function loadAgentDraft() {
+  const draft = readAgentDraft(agentUserId.value)
+  if (!draft) return false
+  agentMode.value = draft.mode
+  agentInput.value = draft.message
+  agentResult.value = null
+  agentError.value = ''
+  return true
+}
+
 function restoreAgentTurn(record) {
   agentOpen.value = true
   agentMode.value = record.mode
@@ -107,16 +126,16 @@ function openAgent(mode) {
   agentMode.value = mode
   agentResult.value = null
   agentError.value = ''
-  agentInput.value =
-    mode === 'buyer'
-      ? '我想买一个考研用的 iPad，预算 1500 左右，最好校本部面交。'
-      : '出一个宿舍小冰箱，八成新，毕业搬宿舍用不上了。'
+  const draft = readAgentDraft(agentUserId.value)
+  agentInput.value = draft?.mode === mode && draft.message ? draft.message : defaultAgentPrompt(mode)
 }
 
 function resetAgentMode() {
   agentMode.value = ''
+  agentInput.value = ''
   agentResult.value = null
   agentError.value = ''
+  clearAgentDraft(agentUserId.value)
 }
 
 async function submitAgent() {
@@ -141,6 +160,8 @@ async function submitAgent() {
       message: payload.message,
       result: agentResult.value,
     })
+    agentInput.value = ''
+    clearAgentDraft(agentUserId.value)
   } catch (error) {
     agentResult.value = null
     agentError.value = error.message || 'Agent 暂时没有响应，请确认后端和 AI 服务已启动。'
@@ -203,11 +224,28 @@ function usePublishDraft(result) {
   router.push({ path: '/items/publish', query: { fromAgent: 'seller' } })
 }
 
-watch(agentUserId, loadAgentHistory)
+watch(agentUserId, () => {
+  loadAgentHistory()
+  if (!loadAgentDraft()) {
+    agentMode.value = ''
+    agentInput.value = ''
+    agentResult.value = null
+    agentError.value = ''
+  }
+})
+
+watch([agentMode, agentInput], () => {
+  if (agentMode.value && agentInput.value.trim()) {
+    saveAgentDraft(agentUserId.value, { mode: agentMode.value, message: agentInput.value })
+    return
+  }
+  clearAgentDraft(agentUserId.value)
+})
 
 onMounted(() => {
   fetchRecommendedProducts()
   loadAgentHistory()
+  loadAgentDraft()
 })
 </script>
 

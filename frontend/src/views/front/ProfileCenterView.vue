@@ -48,6 +48,7 @@ const privacy = ref({
 const title = computed(() => menuItems.find((item) => item.key === activeMenu.value)?.label)
 const currentUser = computed(() => authStore.user || {})
 const currentUserId = computed(() => currentUser.value.userId || currentUser.value.id)
+const displayCreditScore = computed(() => Math.min(Math.max(Number(currentUser.value.creditScore) || 0, 0), 100))
 const displayName = computed(() => currentUser.value.nickname || currentUser.value.realName || currentUser.value.account)
 const avatarText = computed(() => displayName.value?.slice(0, 1) || '用')
 const onSaleProducts = computed(() => myProducts.value.filter((product) => product.status === 'ON_SALE'))
@@ -461,7 +462,7 @@ function openReview(order) {
           <div>
             <h1>{{ displayName }}</h1>
             <p>{{ profileLine }}</p>
-            <el-rate :model-value="5" disabled show-score :score-template="`信用分 ${currentUser.creditScore || 100}`" />
+            <el-rate :model-value="5" disabled show-score :score-template="`信用分 ${displayCreditScore}`" />
           </div>
         </div>
         <div class="profile-stats">

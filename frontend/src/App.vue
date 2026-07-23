@@ -30,7 +30,7 @@ const mobilePageTitle = computed(() => {
   if (route.path === '/swap') return '换物专区'
   if (route.path === '/season') return '毕业季'
   if (route.path === '/help') return '帮助中心'
-  return '校园二手'
+  return 'CampusAgent'
 })
 
 function normalizeNotice(row = {}) {
@@ -149,7 +149,7 @@ watch(
         <div class="topbar">
           <RouterLink class="logo" to="/">
             <img class="logo-mark" src="/brand-mark.svg" alt="" aria-hidden="true" />
-            <span>校园二手闲置网</span>
+            <span>CampusAgent 智能校园闲置平台</span>
           </RouterLink>
 
           <nav class="top-links" aria-label="顶部导航">
@@ -266,7 +266,7 @@ watch(
       </nav>
 
       <footer class="site-footer">
-        <span>校园二手闲置网，为同校区学生提供轻量、安全、可追溯的闲置交易服务。</span>
+        <span>CampusAgent 智能校园闲置平台，为同校区学生提供智能推荐、草稿生成和可追溯的闲置交易服务。</span>
         <nav>
           <RouterLink to="/help">用户协议</RouterLink>
           <RouterLink to="/help">帮助中心</RouterLink>

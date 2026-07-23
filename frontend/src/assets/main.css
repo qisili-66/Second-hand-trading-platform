@@ -1038,7 +1038,7 @@ button {
 
 .review-stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr) auto;
+  grid-template-columns: repeat(3, minmax(76px, 1fr)) minmax(120px, auto);
   gap: 14px;
   align-items: center;
   border: 1px solid var(--line);
@@ -1063,9 +1063,15 @@ button {
   font-size: 13px;
 }
 
+.review-stats .el-rate {
+  justify-self: end;
+  min-width: 0;
+  white-space: nowrap;
+}
+
 .review-row {
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr) auto;
+  grid-template-columns: 84px minmax(0, 1fr);
   gap: 14px;
   align-items: center;
   border: 1px solid var(--line);
@@ -1083,6 +1089,8 @@ button {
 .review-row strong {
   color: var(--text-strong);
   font-weight: 900;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .review-row p {
@@ -1100,6 +1108,12 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
+}
+
+.review-title-line .el-rate {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .order-review-dialog {
@@ -2933,10 +2947,18 @@ body,
   .profile-item-row,
   .mini-order,
   .order-body,
-  .review-row,
   .review-stats,
   .notification-row {
     grid-template-columns: 1fr;
+  }
+
+  .review-row {
+    grid-template-columns: 1fr;
+  }
+
+  .review-title-line {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .product-thumb,

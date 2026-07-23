@@ -75,7 +75,7 @@ async function submitRegister() {
     <section class="auth-layout auth-layout-single auth-layout-wide">
       <el-card class="auth-card simple-auth-card register-card" shadow="never">
         <div class="simple-auth-title">
-          <p>校园二手闲置网</p>
+          <p>CampusAgent 智能校园闲置平台</p>
           <h1>注册</h1>
         </div>
 

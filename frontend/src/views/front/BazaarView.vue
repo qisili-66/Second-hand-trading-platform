@@ -270,6 +270,18 @@ function swapMessage(exchange, item) {
   return `同学你好，我看到你发布的《${item.title}》支持置换。我这边想用《${exchange.title}》交换，需求是：${exchange.expectedTitle}。方便的话可以聊聊成色、配件和面交时间。`
 }
 
+function exchangeContactMessage(exchange) {
+  return `同学你好，我看到你发布的换物《${exchange.title}》，想换：${exchange.expectedTitle}。方便的话可以聊聊成色、配件、补差价和面交时间。`
+}
+
+async function contactExchangeOwner(exchange) {
+  if (!exchange?.itemId) {
+    ElMessage.warning('缺少换物商品信息，暂时不能联系')
+    return
+  }
+  await contactItem({ ...(exchange.item || {}), id: exchange.itemId, itemId: exchange.itemId }, exchangeContactMessage(exchange))
+}
+
 function readAgentWantedDraft() {
   const raw = sessionStorage.getItem('campus-agent-wanted-draft')
   if (!raw) return
@@ -378,7 +390,8 @@ onMounted(() => {
                 <el-button text type="primary" @click="showMatches(exchange)">看匹配</el-button>
                 <el-button v-if="isMyExchange(exchange)" text @click="completeSwap(exchange)">标记完成</el-button>
                 <el-button v-if="isMyExchange(exchange)" text type="danger" @click="cancelSwap(exchange)">取消</el-button>
-                <el-tag v-else type="warning" effect="plain">置换中</el-tag>
+                <el-button v-else text type="primary" @click="contactExchangeOwner(exchange)">联系换物人</el-button>
+                <el-tag type="warning" effect="plain">置换中</el-tag>
               </div>
             </div>
           </el-card>
