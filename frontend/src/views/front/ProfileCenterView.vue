@@ -5,7 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import OrderReview from '../../components/OrderReview.vue'
 import ProductListItem from '../../components/product/ProductListItem.vue'
 import ReviewList from '../../components/ReviewList.vue'
-import { itemApi, orderApi, swapApi, userApi, wantedApi } from '../../services/api'
+import { fileApi, itemApi, orderApi, swapApi, userApi, wantedApi } from '../../services/api'
 import { normalizeExchangePage, normalizeItemPage, normalizeOrder, normalizePurchasePage } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
 
@@ -22,6 +22,8 @@ const notifications = ref([])
 const myPurchases = ref([])
 const myExchanges = ref([])
 const loadingItems = ref(false)
+const avatarInput = ref(null)
+const avatarUploading = ref(false)
 const reviewDialogVisible = ref(false)
 const reviewOrder = ref(null)
 
@@ -50,6 +52,7 @@ const currentUser = computed(() => authStore.user || {})
 const currentUserId = computed(() => currentUser.value.userId || currentUser.value.id)
 const displayCreditScore = computed(() => Math.min(Math.max(Number(currentUser.value.creditScore) || 0, 0), 100))
 const displayName = computed(() => currentUser.value.nickname || currentUser.value.realName || currentUser.value.account)
+const currentUserAvatar = computed(() => currentUser.value.avatarUrl || '')
 const avatarText = computed(() => displayName.value?.slice(0, 1) || '用')
 const onSaleProducts = computed(() => myProducts.value.filter((product) => product.status === 'ON_SALE'))
 const removedProducts = computed(() => myProducts.value.filter((product) => product.status === 'REMOVED'))
@@ -104,6 +107,42 @@ function goRegister() {
 
 function savePrivacy() {
   ElMessage.success('隐私设置已保存')
+}
+
+function chooseAvatar() {
+  avatarInput.value?.click()
+}
+
+async function uploadAvatar(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    ElMessage.warning('请选择图片文件')
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.warning('头像图片不能超过 5MB')
+    return
+  }
+
+  avatarUploading.value = true
+  try {
+    const uploadResponse = await fileApi.uploadImage(file)
+    const payload = uploadResponse.data || uploadResponse
+    const avatarUrl = payload.url || payload.imageUrl || payload.fileUrl
+    if (!avatarUrl) {
+      ElMessage.warning('头像上传成功，但没有返回图片地址')
+      return
+    }
+    const response = await userApi.updateMe({ avatarUrl })
+    if (response.data) authStore.updateProfile(response.data)
+    ElMessage.success('头像已更新')
+  } catch (error) {
+    ElMessage.error(error.message || '头像上传失败')
+  } finally {
+    avatarUploading.value = false
+  }
 }
 
 async function fetchUserItems() {
@@ -458,7 +497,11 @@ function openReview(order) {
     <template v-else>
       <el-card class="profile-hero" shadow="never">
         <div class="profile-user">
-          <el-avatar :size="82">{{ avatarText }}</el-avatar>
+          <div class="profile-avatar-stack">
+            <el-avatar :size="82" :src="currentUserAvatar">{{ avatarText }}</el-avatar>
+            <input ref="avatarInput" class="avatar-file-input" type="file" accept="image/*" @change="uploadAvatar" />
+            <el-button size="small" :loading="avatarUploading" @click="chooseAvatar">修改头像</el-button>
+          </div>
           <div>
             <h1>{{ displayName }}</h1>
             <p>{{ profileLine }}</p>

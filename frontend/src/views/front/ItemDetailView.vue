@@ -188,6 +188,11 @@ function reportItemToApi() {
     .catch(() => {})
 }
 
+function goSellerProfile() {
+  if (!product.value.sellerId) return
+  router.push(`/users/${product.value.sellerId}`)
+}
+
 async function submitComment() {
   if (!requireLogin('发表留言')) return
   if (!comment.value.trim()) {
@@ -239,14 +244,14 @@ async function submitComment() {
           <el-tag effect="plain">{{ product.campus }} · {{ product.dorm }}</el-tag>
         </div>
 
-        <div class="seller-card">
-          <el-avatar :size="52">{{ product.seller.slice(0, 1) }}</el-avatar>
+        <button class="seller-card seller-card-link" type="button" @click="goSellerProfile">
+          <el-avatar :size="52" :src="product.sellerAvatar">{{ product.seller.slice(0, 1) }}</el-avatar>
           <div>
             <h3>{{ product.seller }}</h3>
             <p>信用分 {{ product.credit }}</p>
           </div>
-          <el-tag type="success" effect="dark">高信用</el-tag>
-        </div>
+          <el-tag type="success" effect="dark">进入主页</el-tag>
+        </button>
 
         <div class="detail-actions">
           <el-button size="large" :type="favorited ? 'warning' : 'default'" :icon="StarFilled" @click="toggleFavorite">

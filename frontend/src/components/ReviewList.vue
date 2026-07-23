@@ -71,7 +71,9 @@ async function fetchReviews() {
         <strong>{{ creditScore }}</strong>
         <span>信用分</span>
       </div>
-      <el-rate :model-value="averageRating" disabled allow-half />
+      <div class="review-rate-box">
+        <el-rate :model-value="averageRating" disabled allow-half />
+      </div>
     </div>
 
     <div v-if="reviews.length > 0" class="review-list">

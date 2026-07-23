@@ -40,6 +40,11 @@ const router = createRouter({
       component: () => import('../views/front/ProfileCenterView.vue'),
     },
     {
+      path: '/users/:userId',
+      name: 'user-public-profile',
+      component: () => import('../views/front/UserPublicProfileView.vue'),
+    },
+    {
       path: '/chats',
       name: 'chats',
       component: () => import('../views/front/ChatView.vue'),

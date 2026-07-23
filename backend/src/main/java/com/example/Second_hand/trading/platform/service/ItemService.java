@@ -296,6 +296,21 @@ public class ItemService {
 				.toList();
 	}
 
+	public List<Map<String, Object>> publicItemsBySeller(Long sellerId) {
+		if (sellerId == null) {
+			return List.of();
+		}
+
+		return itemMapper.selectList(Wrappers.lambdaQuery(ItemEntity.class)
+				.eq(ItemEntity::getSellerId, sellerId)
+				.eq(ItemEntity::getDeleted, 0)
+				.eq(ItemEntity::getStatus, "ON_SALE")
+				.orderByDesc(ItemEntity::getCreatedAt))
+				.stream()
+				.map(this::itemRow)
+				.toList();
+	}
+
 	public List<Map<String, Object>> favoriteItems(Long userId) {
 		if (userId == null) {
 			return List.of();
@@ -523,7 +538,7 @@ public class ItemService {
 
 	private Map<String, Object> sellerRow(Long sellerId, String fallbackCampus) {
 		List<Map<String, Object>> users = jdbcTemplate.queryForList("""
-				SELECT id AS userId, nickname, avatar_url AS avatarUrl, campus
+				SELECT id AS userId, nickname, avatar_url AS avatarUrl, campus, credit_score AS creditScore
 				FROM users
 				WHERE id = ? AND deleted = 0
 				LIMIT 1
@@ -535,6 +550,7 @@ public class ItemService {
 			row.put("nickname", user.get("nickname"));
 			row.put("avatarUrl", user.get("avatarUrl") == null ? "" : user.get("avatarUrl"));
 			row.put("campus", user.get("campus") == null ? fallbackCampus : user.get("campus"));
+			row.put("creditScore", user.get("creditScore") == null ? 0 : user.get("creditScore"));
 			return row;
 		}
 
@@ -543,6 +559,7 @@ public class ItemService {
 		row.put("nickname", "用户" + sellerId);
 		row.put("avatarUrl", "");
 		row.put("campus", fallbackCampus);
+		row.put("creditScore", 0);
 		return row;
 	}
 

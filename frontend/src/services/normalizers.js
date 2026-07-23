@@ -21,6 +21,7 @@ export function normalizeItem(item = {}) {
     id: item.itemId ?? item.id,
     itemId: item.itemId ?? item.id,
     sellerId: seller.userId ?? item.sellerId,
+    sellerAvatar: seller.avatarUrl || item.sellerAvatar || '',
     title: item.title || '',
     desc: item.description || item.desc || '',
     description: item.description || item.desc || '',
@@ -43,7 +44,7 @@ export function normalizeItem(item = {}) {
     image: coverUrl,
     imageUrls: imageUrls.length ? imageUrls : [coverUrl],
     seller: seller.nickname || (seller.userId ? `用户${seller.userId}` : ''),
-    credit: 100,
+    credit: Math.min(Math.max(numberValue(seller.creditScore ?? item.creditScore), 0), 100),
     status: item.itemStatus || item.status || 'ON_SALE',
     statusText: item.itemStatus || item.status || '',
   }

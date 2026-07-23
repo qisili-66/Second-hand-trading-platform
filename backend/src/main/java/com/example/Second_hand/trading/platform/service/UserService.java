@@ -144,6 +144,26 @@ public class UserService {
 		return itemService.itemsBySeller(userId);
 	}
 
+	public List<Map<String, Object>> publicItems(Long userId) {
+		requireUser(userId);
+		return itemService.publicItemsBySeller(userId);
+	}
+
+	public Map<String, Object> publicProfile(Long userId) {
+		Map<String, Object> user = userById(userId);
+		if (user.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+		}
+		return Map.of(
+				"userId", user.get("userId"),
+				"nickname", user.get("nickname") == null ? "用户" + userId : user.get("nickname"),
+				"avatarUrl", user.get("avatarUrl") == null ? "" : user.get("avatarUrl"),
+				"campus", user.get("campus") == null ? "" : user.get("campus"),
+				"department", user.get("department") == null ? "" : user.get("department"),
+				"creditScore", Math.min(Math.max(user.get("creditScore") instanceof Number number ? number.intValue() : 0, 0), 100),
+				"createdAt", user.get("createdAt") == null ? "" : user.get("createdAt"));
+	}
+
 	public List<Map<String, Object>> myFavorites(Long userId) {
 		return itemService.favoriteItems(userId);
 	}

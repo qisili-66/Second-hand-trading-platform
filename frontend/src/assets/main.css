@@ -726,12 +726,27 @@ button {
 .seller-card {
   display: flex;
   align-items: center;
+  width: 100%;
   gap: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fafafa;
   margin-top: 22px;
   padding: 14px;
+}
+
+.seller-card-link {
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
+}
+
+.seller-card-link:hover {
+  border-color: rgba(217, 100, 42, 0.34);
+  background: #fffaf5;
+  transform: translateY(-1px);
 }
 
 .seller-card h3,
@@ -796,6 +811,17 @@ button {
   gap: 18px;
 }
 
+.profile-avatar-stack {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: center;
+  gap: 8px;
+}
+
+.avatar-file-input {
+  display: none;
+}
+
 .profile-user h1 {
   margin: 0 0 6px;
   color: var(--text-strong);
@@ -833,6 +859,22 @@ button {
   grid-template-columns: 230px 1fr;
   gap: 18px;
   margin-top: 18px;
+}
+
+.public-profile-page {
+  display: grid;
+  gap: 18px;
+}
+
+.public-profile-hero {
+  margin-top: 12px;
+}
+
+.public-profile-section {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 18px;
 }
 
 .profile-menu-card .el-card__body {
@@ -1038,7 +1080,7 @@ button {
 
 .review-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(76px, 1fr)) minmax(120px, auto);
+  grid-template-columns: repeat(3, minmax(76px, 1fr));
   gap: 14px;
   align-items: center;
   border: 1px solid var(--line);
@@ -1063,9 +1105,18 @@ button {
   font-size: 13px;
 }
 
-.review-stats .el-rate {
-  justify-self: end;
+.review-rate-box {
+  grid-column: 1 / -1;
   min-width: 0;
+}
+
+.review-rate-box .el-rate,
+.review-title-line .el-rate {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  width: max-content;
+  max-width: 100%;
   white-space: nowrap;
 }
 
@@ -1111,9 +1162,9 @@ button {
   min-width: 0;
 }
 
-.review-title-line .el-rate {
+.review-title-line .el-rate__item,
+.review-rate-box .el-rate__item {
   flex: 0 0 auto;
-  white-space: nowrap;
 }
 
 .order-review-dialog {
@@ -2959,6 +3010,11 @@ body,
   .review-title-line {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .review-rate-box .el-rate,
+  .review-title-line .el-rate {
+    width: 100%;
   }
 
   .product-thumb,

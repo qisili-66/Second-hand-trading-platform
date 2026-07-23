@@ -74,6 +74,19 @@ public class UserController {
 		return ApiResponse.success(PageResponse.page(userService.myExchanges(authId), page, pageSize));
 	}
 
+	@GetMapping("/{userId}")
+	public ApiResponse<Map<String, Object>> publicProfile(@PathVariable Long userId) {
+		return ApiResponse.success(userService.publicProfile(userId));
+	}
+
+	@GetMapping("/{userId}/items")
+	public ApiResponse<PageResponse<Map<String, Object>>> publicItems(
+			@PathVariable Long userId,
+			@RequestParam(defaultValue = "1") int page,
+			@RequestParam(defaultValue = "12") int pageSize) {
+		return ApiResponse.success(PageResponse.page(userService.publicItems(userId), page, pageSize));
+	}
+
 	@GetMapping("/{userId}/reviews")
 	public ApiResponse<PageResponse<Map<String, Object>>> reviews(
 			@PathVariable Integer userId,
