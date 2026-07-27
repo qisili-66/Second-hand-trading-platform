@@ -1,68 +1,72 @@
 # CampusAgent 智能校园闲置平台
 
-![Vue 3](https://img.shields.io/badge/Vue-3-42b883?logo=vue.js&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4-6DB33F?logo=springboot&logoColor=white)
-![Java](https://img.shields.io/badge/Java-17-007396?logo=openjdk&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
-![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql&logoColor=white)
+<p align="center">
+  <img src="frontend/public/brand-mark.svg" width="88" alt="CampusAgent Logo">
+</p>
 
-CampusAgent 是一个面向校园场景的 Agent 辅助闲置交易平台。项目围绕大学生二手流转、求购、置换和交易治理展开，提供普通用户前台、管理后台、Spring Boot 后端、MySQL 数据库脚本和 FastAPI AI Agent 服务。项目当前按重新部署口径收尾，部署前应重新执行前端构建、后端编译和 AI 测试。
+<p align="center">
+  <a href="#技术栈"><img src="https://img.shields.io/badge/Vue-3-42B883?logo=vuedotjs&logoColor=white" alt="Vue 3"></a>
+  <a href="#技术栈"><img src="https://img.shields.io/badge/Spring%20Boot-4-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot 4"></a>
+  <a href="#技术栈"><img src="https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white" alt="FastAPI"></a>
+  <a href="#技术栈"><img src="https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white" alt="Java 17"></a>
+  <a href="#技术栈"><img src="https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql&logoColor=white" alt="MySQL 8"></a>
+</p>
 
-平台内置淘货 Agent 和发布 Agent：买家可以用自然语言描述需求，获得商品推荐、风险提示、私聊草稿、求购草稿或换物草稿；卖家可以用一句话生成发布标题、描述、分类、成色、建议价格和置换意向。Agent 现在支持“确认后代执行”：可在用户确认后自动发送私聊、创建预约订单、发布求购、发布换物或直接发布商品。
+CampusAgent 是一个面向校园场景的智能闲置交易平台，提供商品发布与浏览、订单交易、即时聊天、求购换物、后台治理，以及由 Agent 驱动的交易辅助能力。
 
-## 功能亮点
+## 项目演示
 
-- 商品交易：发布商品、保存草稿、图片上传、筛选搜索、详情展示、上下架和软删除。
-- 交易闭环：订单创建、卖家接单、取消、完成、评价和信用分展示。
-- 即时互动：收藏、留言、站内聊天、系统通知和 WebSocket 实时推送。
-- 求购置换：求购发布、以物换物、匹配推荐、联系换物人、取消或标记完成。
-- AI Agent：淘货推荐、求购草稿、换物草稿、发布草稿、风险提示、本地历史记录，以及确认后的代发私聊、预约、发布求购、发布换物和直接发布商品。
-- 管理后台：数据大盘、用户管理、商品管理、分类管理、订单/纠纷/举报、系统配置和公告管理。
-- 权限控制：普通用户和管理员 JWT 分离，前端路由守卫和后端接口鉴权双重兜底。
-- 部署友好：支持 Nginx 反代、systemd 管理后端与 AI 服务、环境变量覆盖生产配置。
+- 本地前台预览：`http://127.0.0.1:5173`
+- 本地后台预览：`http://127.0.0.1:5173/admin`
+- 线上部署后，将以上地址替换为你的域名或服务器地址即可。
+
+项目 Logo：
+
+<p align="center">
+  <img src="frontend/public/brand-mark.svg" width="160" alt="CampusAgent 标识">
+</p>
 
 ## 技术栈
 
-| 模块 | 技术 |
+| 层级 | 技术 |
 | --- | --- |
 | 前端 | Vue 3、Vite、Vue Router、Pinia、Element Plus、Axios、ECharts、SockJS、STOMP |
 | 后端 | Java 17、Spring Boot 4、Spring MVC、Spring WebSocket、JdbcTemplate、MyBatis-Plus、Lombok |
 | AI 服务 | Python 3.12、FastAPI、Pydantic 2、LangChain、千问 OpenAI-compatible API |
 | 数据库 | MySQL 8、utf8mb4 |
-| 部署 | Nginx、systemd、环境变量、MySQL 备份与回滚 |
+| 部署 | Nginx、systemd、环境变量 |
 
-## 项目结构
+## 功能特性
 
-```text
-.
-├── ai/                          # FastAPI + LangChain Agent 服务
-├── backend/                     # Spring Boot 后端
-│   ├── src/main/java/...         # controller / service / entity / mapper / config / dto
-│   ├── src/main/resources        # application.yml 等配置
-│   ├── sql                       # 建表、基础数据、演示重置 SQL
-│   └── scripts                   # 数据库初始化脚本
-├── frontend/                    # Vue 3 + Vite 前端
-│   ├── src/views/front           # 用户前台页面
-│   ├── src/views/admin           # 管理后台页面
-│   ├── src/services              # API、Agent 历史和 WebSocket 封装
-│   ├── src/stores                # Pinia 状态
-│   └── src/router                # 前端路由
-└── README.md
-```
+- 商品交易：商品发布、草稿保存、图片上传、筛选搜索、详情展示、上下架和软删除。
+- 交易闭环：订单创建、卖家接单、取消、完成、评价与信用分展示。
+- 实时互动：收藏、留言、站内聊天、系统通知与 WebSocket 实时推送。
+- 求购换物：求购发布、以物换物、匹配推荐、联系换物人、取消与完成。
+- Agent 能力：淘货推荐、风险提示、私聊草稿、求购/换物草稿、商品发布草稿；用户确认后可执行私聊、预约、发布求购、发布换物或发布商品。
+- 管理后台：数据概览、用户管理、商品管理、分类管理、订单、举报、公告与系统配置。
+- 权限控制：普通用户与管理员 JWT 分离，前端路由守卫和后端接口鉴权。
 
-## 快速开始
+## 快速上手
 
-### 环境要求
+### 环境依赖
 
-| 工具 | 建议版本 |
+| 工具 | 版本要求 |
 | --- | --- |
 | JDK | 17 |
 | MySQL | 8.x |
 | Node.js | `^20.19.0` 或 `>=22.12.0` |
 | Python | 3.12 |
 
-### 初始化数据库
+### 1. 克隆项目
+
+```bash
+git clone https://github.com/qisili-66/Second-hand-trading-platform.git
+cd Second-hand-trading-platform
+```
+
+### 2. 初始化数据库
+
+创建名为 `second_hand_trade` 的 MySQL 数据库，字符集设为 `utf8mb4`，再执行：
 
 ```powershell
 cd backend
@@ -70,34 +74,42 @@ cd backend
 cd ..
 ```
 
-脚本会执行基础建表和种子数据。生产环境不要直接运行重置脚本，尤其不要执行 `backend/sql/04_reset_seed_zhangyida_100_items.sql`。
+也可以按顺序手动导入：
 
-### 启动后端
+```text
+backend/sql/01_create_tables.sql
+backend/sql/02_seed_data.sql
+backend/sql/03_add_purchases_exchanges.sql
+```
+
+### 3. 配置环境变量
+
+后端可直接使用 `backend/src/main/resources/application.yml` 的本地默认配置，也可通过环境变量覆盖数据库、JWT、文件上传路径和 AI 服务地址。生产环境请使用环境变量或独立环境文件，避免提交密钥。
+
+AI 服务在 `ai/.env` 中配置模型能力。首次启动时可参考 `ai/.env.example` 创建该文件。
+
+### 4. 启动后端
 
 ```powershell
 cd backend
 .\mvnw.cmd spring-boot:run
 ```
 
-默认地址：`http://127.0.0.1:8080`
-
-健康检查：
+后端默认运行在 `http://127.0.0.1:8080`，健康检查：
 
 ```powershell
 curl.exe http://127.0.0.1:8080/api/health
 ```
 
-### 启动 AI 服务
+### 5. 启动 AI 服务
 
-```powershell
+```bat
 ai\start.bat
 ```
 
-默认地址：`http://127.0.0.1:8001`
+AI 服务默认运行在 `http://127.0.0.1:8001`。未配置 `QWEN_API_KEY` 时，服务仍会返回规则兜底结果，便于本地联调。
 
-AI 服务使用 Python 3.12。可通过环境变量配置 `QWEN_API_KEY`、`QWEN_BASE_URL`、`QWEN_MODEL` 和 `LLM_TIMEOUT_SECONDS`。
-
-### 启动前端
+### 6. 启动前端
 
 ```powershell
 cd frontend
@@ -105,104 +117,119 @@ npm install
 npm run dev
 ```
 
-默认地址：`http://127.0.0.1:5173`
-
-Vite 已配置本地代理：
+前端默认运行在 `http://127.0.0.1:5173`，开发环境已代理：
 
 ```text
 /api -> http://127.0.0.1:8080
 /ws  -> http://127.0.0.1:8080
 ```
 
-## 默认账号
+### 演示账号
 
-管理员账号只用于后台，普通用户只用于前台交易功能。
+执行 `backend/sql/02_seed_data.sql` 后会创建本地演示数据。出于安全考虑，README 不公开任何账号密码；请在本地种子脚本或部署环境中自行设置、查看并保管演示凭据。
 
-```text
-后台入口：http://127.0.0.1:5173/admin
-账号：admin
-密码：admin123456
-```
+## 目录结构
 
 ```text
-前台入口：http://127.0.0.1:5173/login
-账号：张益达 或 ZYD2026001
-密码：123456
+.
+├── ai/                         # FastAPI + LangChain Agent 服务
+│   ├── app/                    # Agent、模型调用、工具与接口
+│   └── tests/                  # AI 服务测试
+├── backend/                    # Spring Boot 后端
+│   ├── src/main/java/          # Controller、Service、Entity、Mapper、Config、DTO
+│   ├── src/main/resources/     # application.yml 等配置
+│   ├── sql/                    # 建表、种子与演示数据 SQL
+│   └── scripts/                # 数据库初始化脚本
+├── frontend/                   # Vue 3 + Vite 前端
+│   ├── src/views/front/        # 用户前台页面
+│   ├── src/views/admin/        # 管理后台页面
+│   ├── src/services/           # API、WebSocket 与 Agent 历史封装
+│   ├── src/stores/             # Pinia 状态管理
+│   └── src/router/             # 路由定义
+└── README.md
 ```
 
-## 常用命令
+## 配置说明
 
-前端构建：
+### 后端环境变量
 
-```powershell
-cd frontend
-npm run build
-```
+| 变量 | 说明 |
+| --- | --- |
+| `DB_URL` | MySQL JDBC 连接地址 |
+| `DB_USERNAME` / `DB_PASSWORD` | 数据库账号与密码 |
+| `JWT_SECRET` | JWT 签名密钥，生产环境必须替换 |
+| `APP_UPLOAD_DIR` | 上传文件存储路径 |
+| `AI_SERVICE_BASE_URL` | AI 服务地址，默认 `http://127.0.0.1:8001` |
+| `AI_SERVICE_TIMEOUT_SECONDS` | 后端调用 AI 服务的超时秒数 |
 
-前端检查：
+### AI 服务环境变量
 
-```powershell
-cd frontend
-npm run lint
-```
+| 变量 | 说明 |
+| --- | --- |
+| `QWEN_API_KEY` | 通义千问 API Key；未配置时使用规则兜底 |
+| `QWEN_BASE_URL` | 千问 OpenAI-compatible 服务地址 |
+| `QWEN_MODEL` | 模型名称 |
+| `LLM_TIMEOUT_SECONDS` | 大模型调用超时秒数 |
+| `DB_HOST` / `DB_PORT` / `DB_NAME` | AI 服务查询商品数据的数据库连接配置 |
+| `DB_USER` / `DB_PASSWORD` | AI 服务数据库账号与密码 |
 
-后端测试：
+请勿提交 `.env`、数据库密码、JWT 密钥、AI Key 或支付密钥。
 
-```powershell
-cd backend
-.\mvnw.cmd test
-```
+## API 与使用文档
 
-AI 测试：
+后端接口统一以 `/api` 为前缀，AI 服务接口以 `/agents` 为前缀。
 
-```powershell
-$env:PYTHONPATH="${PWD}\ai"
-ai\.venv\Scripts\python.exe -m pytest ai\app\tests
-```
+| 方法 | 路径 | 用途 |
+| --- | --- | --- |
+| `POST` | `/api/auth/register` | 用户注册 |
+| `POST` | `/api/auth/login` | 用户登录 |
+| `POST` | `/api/auth/admin/login` | 管理员登录 |
+| `GET` | `/api/items` | 商品分页查询 |
+| `POST` | `/api/items` | 发布商品 |
+| `POST` | `/api/orders` | 创建订单预约 |
+| `POST` | `/api/chats` | 创建聊天会话 |
+| `POST` | `/api/agent/buyer` | 平台买家 Agent |
+| `POST` | `/api/agent/seller` | 平台卖家 Agent |
+| `POST` | `/agents/buyer` | FastAPI 买家 Agent |
+| `POST` | `/agents/seller` | FastAPI 卖家 Agent |
 
-## 核心接口
+WebSocket 入口为 `/ws`。需要登录的接口应携带 JWT 认证信息；详细请求字段可查看对应 Controller、DTO 与前端 `src/services/api.js`。
 
-主要接口入口：
+## 常见问题
 
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/admin/login`
-- `GET /api/items`
-- `POST /api/items`
-- `POST /api/orders`
-- `POST /api/chats`
-- `POST /api/agent/buyer`
-- `POST /api/agent/seller`
-- `POST /agents/buyer`
-- `POST /agents/seller`
+### 前端请求显示超时怎么办？
 
-## 部署概览
+先确认后端健康检查：`curl http://127.0.0.1:8080/api/health`。普通 API 请求超时已配置为 30 秒；首页仅请求商品基础列表，不会自动调用 AI。若线上仍显示旧的 8 秒超时提示，请重新构建前端并清理浏览器缓存。
 
-推荐生产架构：
+### 不配置 AI Key 能运行吗？
 
-```text
-Browser
-  |
-  v
-Nginx :80/:443
-  |-- static frontend dist
-  |-- /api -> Spring Boot :8080
-  |-- /ws  -> Spring Boot :8080
-                    |
-                    |-- MySQL :3306
-                    |-- FastAPI AI :8001
-```
+可以。AI 服务在未配置 `QWEN_API_KEY` 时会使用规则兜底结果；配置后可获得大模型增强的推荐与文案生成能力。
 
-后端和 AI 服务建议用 systemd 托管，生产配置通过环境变量注入，不要把数据库密码、JWT secret、AI key、支付密钥写入仓库。
+### 生产环境如何部署？
 
-## 项目状态
+推荐使用 Nginx 托管前端静态资源并反向代理 `/api` 和 `/ws`；使用 systemd 托管 Spring Boot 与 FastAPI 服务。部署过程中请把环境文件和上传目录放在代码仓库外，并定期备份数据库。
 
-当前项目适合作为简历项目展示：功能闭环完整，包含前台交易、后台治理、实时通信、求购置换和 Agent 辅助执行流程。真实支付默认关闭，支付回调验签、退款、分账/提现、资金台账和对账仍属于生产级增强项。
+### 为什么不能直接开启真实支付？
 
-## 注意事项
+支付相关接口默认不用于真实收款。启用支付宝或微信支付前，需要完成商户配置、签名验签、订单对账、退款和异常处理等生产级能力。
 
-- `frontend/` 是真实前端目录，历史文本里可能出现过 `fronted`。
-- AI 服务不要使用默认指向 Python 3.14 的 `python`，请使用 Python 3.12。
-- 生产环境不要执行清库或演示重置脚本。
-- Agent 当前定位为辅助执行能力：会先生成建议和草稿，再由用户点击确认后调用真实业务接口执行，不绕过登录态、权限校验和后端业务规则。
-- 支付宝/微信支付配置默认关闭，未补齐验签和对账前不建议开启真实收款。
+## 贡献指南
+
+欢迎通过 Issue 提交问题或建议，也欢迎发起 Pull Request。
+
+1. Fork 本仓库并创建功能分支：`git checkout -b feature/your-feature`。
+2. 保持改动聚焦，补充必要测试，并执行前端构建或相关测试。
+3. 提交信息使用清晰的动词开头，例如 `feat: add wanted post filter`。
+4. 在 Pull Request 中说明改动目的、测试方式和可能的兼容性影响。
+
+请不要提交环境文件、账号密码、密钥、构建产物或 IDE 本地配置。
+
+## 开源协议
+
+当前仓库尚未附带 `LICENSE` 文件。代码默认保留所有权利；如需开源分发，请在确定许可证后添加对应的 `LICENSE` 文件。
+
+## 作者与联系
+
+- 作者：张益达
+- GitHub：[qisili-66](https://github.com/qisili-66)
+- 仓库：[Second-hand-trading-platform](https://github.com/qisili-66/Second-hand-trading-platform)
