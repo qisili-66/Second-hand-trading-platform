@@ -77,9 +77,8 @@ cd ..
 也可以按顺序手动导入：
 
 ```text
-backend/sql/01_create_tables.sql
-backend/sql/02_seed_data.sql
-backend/sql/03_add_purchases_exchanges.sql
+backend/sql/schema.sql      # 完整表结构
+backend/sql/seed_data.sql   # 基础配置、演示账号和 100 条商品数据
 ```
 
 ### 3. 配置环境变量
@@ -126,7 +125,7 @@ npm run dev
 
 ### 演示账号
 
-执行 `backend/sql/02_seed_data.sql` 后会创建本地演示数据。出于安全考虑，README 不公开任何账号密码；请在本地种子脚本或部署环境中自行设置、查看并保管演示凭据。
+执行 `backend/sql/seed_data.sql` 后会重置本地演示数据，并创建基础平台配置、演示账号和 100 条商品。该脚本会清空现有业务数据，只应在本地开发或可丢弃的演示数据库中执行。出于安全考虑，README 不公开任何账号密码；请在本地种子脚本或部署环境中自行设置、查看并保管演示凭据。
 
 ## 目录结构
 

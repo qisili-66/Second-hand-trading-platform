@@ -1,8 +1,10 @@
 USE second_hand_trade;
 SET NAMES utf8mb4;
 
--- Reset demo data for the campus second-hand platform.
--- Keeps the administrator account and stable system dictionaries, then seeds one seller:
+-- Reset all seedable data for the campus second-hand platform.
+-- WARNING: This script clears existing business data, dictionaries, and admin data.
+-- Run it only for local development or a disposable demonstration database.
+-- It then seeds stable platform settings and one seller:
 --   张益达 / 123456
 -- with 100 ON_SALE items across every category and campus.
 
@@ -28,7 +30,17 @@ DELETE FROM audit_logs;
 DELETE FROM items;
 DELETE FROM user_privacy;
 DELETE FROM users;
+DELETE FROM system_settings;
+DELETE FROM sensitive_words;
+DELETE FROM category_tags;
+DELETE FROM categories;
+DELETE FROM admin_users;
 
+ALTER TABLE admin_users AUTO_INCREMENT = 1;
+ALTER TABLE categories AUTO_INCREMENT = 1;
+ALTER TABLE category_tags AUTO_INCREMENT = 1;
+ALTER TABLE sensitive_words AUTO_INCREMENT = 1;
+ALTER TABLE system_settings AUTO_INCREMENT = 1;
 ALTER TABLE users AUTO_INCREMENT = 1;
 ALTER TABLE user_privacy AUTO_INCREMENT = 1;
 ALTER TABLE items AUTO_INCREMENT = 1;
@@ -64,8 +76,6 @@ INSERT INTO categories (id, name, sort_order, enabled) VALUES
 (6, '其他', 6, 1)
 ON DUPLICATE KEY UPDATE name = VALUES(name), sort_order = VALUES(sort_order), enabled = VALUES(enabled);
 
-DELETE FROM category_tags;
-ALTER TABLE category_tags AUTO_INCREMENT = 1;
 INSERT INTO category_tags (id, category_id, name, sort_order) VALUES
 (1, 1, '公共课教材', 1),
 (2, 1, '考研资料', 2),
@@ -86,6 +96,32 @@ INSERT INTO category_tags (id, category_id, name, sort_order) VALUES
 (17, 6, '乐器', 2),
 (18, 6, '杂物', 3)
 ON DUPLICATE KEY UPDATE name = VALUES(name), sort_order = VALUES(sort_order);
+
+INSERT INTO sensitive_words (id, word, enabled, created_by) VALUES
+(1, '私下转账', 1, 1),
+(2, '押金', 1, 1),
+(3, '脱离平台', 1, 1),
+(4, '先付款', 1, 1),
+(5, '加微信交易', 1, 1),
+(6, '绕过平台', 1, 1),
+(7, '定金不退', 1, 1),
+(8, '银行卡转账', 1, 1),
+(9, '虚拟币', 1, 1),
+(10, '不走平台', 1, 1)
+ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), created_by = VALUES(created_by);
+
+INSERT INTO system_settings (id, setting_key, setting_value, description, updated_by) VALUES
+(1, 'trade_rules', '{"maxImages":9,"disputeDays":3,"creditDeduction":10}', '平台交易规则', 1),
+(2, 'payment_wechat', '{"appId":"wx-campus-demo","enabled":false}', '微信支付配置', 1),
+(3, 'payment_alipay', '{"appId":"alipay-campus-demo","enabled":false}', '支付宝支付配置', 1),
+(4, 'payment_campus_card', '{"merchant":"CAMPUS-2026","enabled":false}', '校园卡支付配置', 1),
+(5, 'im_filter', '{"enabled":true,"blockSend":false}', 'IM敏感词过滤配置', 1),
+(6, 'item_publish', '{"autoAudit":false,"maxDrafts":20}', '商品发布配置', 1),
+(7, 'credit_rule', '{"defaultScore":100,"banBelow":40}', '信用分规则', 1),
+(8, 'announcement_popup', '{"enabled":true,"oncePerDay":true}', '公告弹窗配置', 1),
+(9, 'campus_recommend', '{"enabled":true,"defaultCampus":"校本部"}', '同校区推荐配置', 1),
+(10, 'upload_policy', '{"maxFileSizeMb":10,"allowed":["jpg","png","webp"]}', '上传策略配置', 1)
+ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_by = VALUES(updated_by);
 
 INSERT INTO users (
   id, student_no, password_hash, nickname, real_name, department, enrollment_year,
