@@ -12,9 +12,9 @@ spring:
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/second_hand_trade?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:root}
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   sql:
     init:
@@ -31,8 +31,10 @@ app:
   ai:
     base-url: ${AI_SERVICE_BASE_URL:http://127.0.0.1:8001}
     timeout-seconds: ${AI_SERVICE_TIMEOUT_SECONDS:25}
+    max-concurrent-requests: ${AI_SERVICE_MAX_CONCURRENT_REQUESTS:8}
+    queue-timeout-ms: ${AI_SERVICE_QUEUE_TIMEOUT_MS:150}
   jwt:
-    secret: ${JWT_SECRET:campus_trade_2026_random_secret_abc123xyz789longkey}
+    secret: ${JWT_SECRET}
     expire-minutes: 120
   payment:
     return-url: http://114.132.69.232/orders

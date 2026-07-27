@@ -27,7 +27,15 @@ def _settings() -> Settings:
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     settings = _settings()
-    return HealthResponse(model=settings.qwen_model, llm_configured=QwenLLM(settings).configured)
+    llm = QwenLLM(settings)
+    runtime = llm.runtime_status
+    return HealthResponse(
+        model=settings.qwen_model,
+        llm_configured=llm.configured,
+        llm_circuit_state=runtime.state,
+        llm_consecutive_failures=runtime.consecutive_failures,
+        llm_max_concurrent_requests=runtime.max_concurrent_requests,
+    )
 
 
 @app.post("/agents/buyer", response_model=BuyerAgentResponse)

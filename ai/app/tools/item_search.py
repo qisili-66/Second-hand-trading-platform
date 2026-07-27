@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+import logging
 from typing import Any
 
 from app.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -60,6 +63,9 @@ def search_items(settings: Settings, keyword: str, campus: str = "", budget: int
         import pymysql
     except Exception:
         return []
+    if not settings.db_user or not settings.db_password:
+        logger.info("item_search_skipped reason=database_credentials_not_configured")
+        return []
 
     words = [word for word in re.split(r"\s+", keyword) if word]
     where = ["i.deleted = 0", "i.status = 'ON_SALE'"]
@@ -92,7 +98,7 @@ def search_items(settings: Settings, keyword: str, campus: str = "", budget: int
         ORDER BY i.favorite_count DESC, i.view_count DESC, i.created_at DESC
         LIMIT %s
     """
-    params.append(limit)
+    params.append(max(1, min(int(limit), 20)))
 
     try:
         connection = pymysql.connect(
@@ -127,7 +133,8 @@ def search_items(settings: Settings, keyword: str, campus: str = "", budget: int
             )
             for row in rows
         ]
-    except Exception:
+    except Exception as exc:
+        logger.warning("item_search_failed error_type=%s", type(exc).__name__)
         return []
 
 

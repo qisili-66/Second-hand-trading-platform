@@ -6,6 +6,7 @@ doc/
 mcp-shell.log
 
 ai/.env
+backend/.env
 ai/.venv/
 ai/.pytest_cache/
 ai/**/__pycache__/

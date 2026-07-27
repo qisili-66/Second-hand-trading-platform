@@ -28,6 +28,9 @@ public class JwtService {
 
 	public JwtService(@Value("${app.jwt.secret}") String secret,
 			@Value("${app.jwt.expire-minutes:120}") long expireMinutes) {
+		if (secret == null || secret.trim().length() < 32) {
+			throw new IllegalStateException("JWT_SECRET 必须配置为至少 32 位的随机字符串");
+		}
 		this.secret = secret;
 		this.expireSeconds = expireMinutes * 60;
 	}

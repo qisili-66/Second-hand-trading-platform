@@ -11,6 +11,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.server.ResponseStatusException;
 
 import com.example.Second_hand.trading.platform.dto.ApiResponse;
+import com.example.Second_hand.trading.platform.exception.AgentServiceException;
+import com.example.Second_hand.trading.platform.exception.AgentServiceException.Reason;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -33,6 +35,24 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ApiResponse<Object>> handleIllegalState(IllegalStateException ex) {
 		String message = ex.getMessage() == null || ex.getMessage().isBlank() ? "服务暂不可用" : ex.getMessage();
 		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ApiResponse.error(50300, message));
+	}
+
+	@ExceptionHandler(AgentServiceException.class)
+	public ResponseEntity<ApiResponse<Object>> handleAgentService(AgentServiceException ex) {
+		Reason reason = ex.getReason();
+		HttpStatus status = switch (reason) {
+			case OVERLOADED -> HttpStatus.TOO_MANY_REQUESTS;
+			case TIMEOUT -> HttpStatus.GATEWAY_TIMEOUT;
+			case INVALID_RESPONSE -> HttpStatus.BAD_GATEWAY;
+			case UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
+		};
+		int code = switch (reason) {
+			case OVERLOADED -> 42901;
+			case TIMEOUT -> 50401;
+			case INVALID_RESPONSE -> 50201;
+			case UNAVAILABLE -> 50301;
+		};
+		return ResponseEntity.status(status).body(ApiResponse.error(code, ex.getMessage()));
 	}
 
 	@ExceptionHandler({

@@ -90,3 +90,6 @@ class HealthResponse(BaseModel):
     service: str = "campus-trade-ai"
     model: str
     llm_configured: bool
+    llm_circuit_state: str = "CLOSED"
+    llm_consecutive_failures: int = 0
+    llm_max_concurrent_requests: int = 0

@@ -84,7 +84,7 @@ backend/sql/03_add_purchases_exchanges.sql
 
 ### 3. 配置环境变量
 
-后端可直接使用 `backend/src/main/resources/application.yml` 的本地默认配置，也可通过环境变量覆盖数据库、JWT、文件上传路径和 AI 服务地址。生产环境请使用环境变量或独立环境文件，避免提交密钥。
+复制 `backend/.env.example` 为不提交的 `backend/.env`，并将其中变量加载到运行环境。后端不会提供数据库密码或 JWT 密钥的弱默认值；至少需要设置 `DB_URL`、`DB_USERNAME`、`DB_PASSWORD` 和长度不少于 32 位的 `JWT_SECRET`。生产环境请使用 systemd `EnvironmentFile` 或平台密钥管理功能注入这些变量。
 
 AI 服务在 `ai/.env` 中配置模型能力。首次启动时可参考 `ai/.env.example` 创建该文件。
 
@@ -161,6 +161,8 @@ npm run dev
 | `APP_UPLOAD_DIR` | 上传文件存储路径 |
 | `AI_SERVICE_BASE_URL` | AI 服务地址，默认 `http://127.0.0.1:8001` |
 | `AI_SERVICE_TIMEOUT_SECONDS` | 后端调用 AI 服务的超时秒数 |
+| `AI_SERVICE_MAX_CONCURRENT_REQUESTS` | 后端同时代理到 AI 服务的最大请求数，默认 `8` |
+| `AI_SERVICE_QUEUE_TIMEOUT_MS` | 后端等待 AI 并发槽的最长毫秒数，默认 `150` |
 
 ### AI 服务环境变量
 
@@ -170,6 +172,10 @@ npm run dev
 | `QWEN_BASE_URL` | 千问 OpenAI-compatible 服务地址 |
 | `QWEN_MODEL` | 模型名称 |
 | `LLM_TIMEOUT_SECONDS` | 大模型调用超时秒数 |
+| `LLM_MAX_RETRIES` | 单次 Agent 请求最多重试次数，默认 `1`，最大 `2` |
+| `LLM_MAX_CONCURRENT_REQUESTS` | AI 服务同时执行的模型调用数，默认 `4` |
+| `LLM_FAILURE_THRESHOLD` | 连续失败后打开熔断器的阈值，默认 `3` |
+| `LLM_CIRCUIT_RECOVERY_SECONDS` | 熔断器再次尝试探测上游前的等待秒数，默认 `30` |
 | `DB_HOST` / `DB_PORT` / `DB_NAME` | AI 服务查询商品数据的数据库连接配置 |
 | `DB_USER` / `DB_PASSWORD` | AI 服务数据库账号与密码 |
 
