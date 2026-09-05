@@ -2,20 +2,13 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ChatDotRound, Close, EditPen, Goods, Promotion } from '@element-plus/icons-vue'
+import { ChatDotRound, Close, Goods, Promotion } from '@element-plus/icons-vue'
 import ProductGridCard from '../../components/product/ProductGridCard.vue'
-import { agentApi, chatApi, itemApi, orderApi, swapApi, userApi, wantedApi } from '../../services/api'
+import { agentApi, itemApi } from '../../services/api'
 import {
-  agentHistoryUserId,
   agentTurnSummary,
   agentTurnTime,
   agentTurnTitle,
-  clearAgentDraft,
-  clearAgentHistory,
-  readAgentDraft,
-  readAgentHistory,
-  saveAgentDraft,
-  saveAgentTurn,
 } from '../../services/agentHistory'
 import { normalizeItemPage } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
@@ -29,12 +22,16 @@ const agentOpen = ref(false)
 const agentMode = ref('')
 const agentInput = ref('')
 const agentLoading = ref(false)
-const agentActionLoading = ref('')
 const agentResult = ref(null)
 const agentError = ref('')
 const agentHistory = ref([])
-const agentUserId = computed(() => agentHistoryUserId(authStore.user))
 const hasAgentHistory = computed(() => agentHistory.value.length > 0)
+const agentModeLabel = computed(() => agentResult.value?.mode === 'fallback' || agentResult.value?.mode === 'basic-filter' ? '基础筛选' : '模型增强推荐')
+const agentTimeline = computed(() => agentResult.value?.timeline || agentResult.value?.steps || [])
+
+function timelineLabel(step) {
+  return { search_items: '已查询商品', seller_summary: '已查询卖家信用', order_status: '已查询本人订单', user_preferences: '已查询偏好', item_realtime: '已核验商品状态', agent_service: 'Agent 服务' }[step.tool] || '已完成安全查询'
+}
 
 const recommendedProducts = computed(() => {
   if (activeTab.value === 'hot') {
@@ -91,24 +88,30 @@ function goItemList() {
   router.push('/items')
 }
 
-function loadAgentHistory() {
-  agentHistory.value = readAgentHistory(agentUserId.value)
+async function loadAgentHistory() {
+  if (!authStore.isLoggedIn) {
+    agentHistory.value = []
+    return
+  }
+  try {
+    const response = await agentApi.runs()
+    const rows = response.data || response || []
+    agentHistory.value = Array.isArray(rows)
+      ? rows.map((row) => ({
+          id: row.runId,
+          mode: 'buyer',
+          message: row.message || '',
+          result: row.result || {},
+          createdAt: row.createdAt || '',
+        }))
+      : []
+  } catch (error) {
+    agentHistory.value = []
+  }
 }
 
-function defaultAgentPrompt(mode) {
-  return mode === 'buyer'
-    ? '我想买一个考研用的 iPad，预算 1500 左右，最好校本部面交。'
-    : '出一个宿舍小冰箱，八成新，毕业搬宿舍用不上了。'
-}
-
-function loadAgentDraft() {
-  const draft = readAgentDraft(agentUserId.value)
-  if (!draft) return false
-  agentMode.value = draft.mode
-  agentInput.value = draft.message
-  agentResult.value = null
-  agentError.value = ''
-  return true
+function defaultAgentPrompt() {
+  return '我想买一个考研用的 iPad，预算 1500 左右，最好校本部面交。'
 }
 
 function restoreAgentTurn(record) {
@@ -119,18 +122,22 @@ function restoreAgentTurn(record) {
   agentError.value = ''
 }
 
-function clearAgentTurns() {
-  agentHistory.value = clearAgentHistory(agentUserId.value)
-  ElMessage.success('已清空 Agent 记录')
+async function clearAgentTurns() {
+  try {
+    await agentApi.clearRuns()
+    agentHistory.value = []
+    ElMessage.success('已清空 Agent 记录')
+  } catch (error) {
+    ElMessage.error(error.message || '清空 Agent 记录失败')
+  }
 }
 
-function openAgent(mode) {
+function openAgent() {
   agentOpen.value = true
-  agentMode.value = mode
+  agentMode.value = 'buyer'
   agentResult.value = null
   agentError.value = ''
-  const draft = readAgentDraft(agentUserId.value)
-  agentInput.value = draft?.mode === mode && draft.message ? draft.message : defaultAgentPrompt(mode)
+  agentInput.value = defaultAgentPrompt()
 }
 
 function resetAgentMode() {
@@ -138,11 +145,11 @@ function resetAgentMode() {
   agentInput.value = ''
   agentResult.value = null
   agentError.value = ''
-  clearAgentDraft(agentUserId.value)
 }
 
 async function submitAgent() {
   if (!agentMode.value) return
+  if (agentMode.value === 'buyer' && !ensureAgentLogin('使用可信导购 Agent')) return
   if (!agentInput.value.trim()) {
     ElMessage.warning('先告诉 Agent 你的需求')
     return
@@ -151,35 +158,16 @@ async function submitAgent() {
   agentLoading.value = true
   agentError.value = ''
   try {
-    const payload = {
-      message: agentInput.value.trim(),
-      userId: authStore.user?.userId || authStore.user?.id || null,
-    }
-    const response =
-      agentMode.value === 'buyer' ? await agentApi.buyer(payload) : await agentApi.seller(payload)
+    const payload = { message: agentInput.value.trim() }
+    const response = await agentApi.buyerRun(payload)
     agentResult.value = response.data || response
-    agentHistory.value = saveAgentTurn(agentUserId.value, {
-      mode: agentMode.value,
-      message: payload.message,
-      result: agentResult.value,
-    })
+    await loadAgentHistory()
     agentInput.value = ''
-    clearAgentDraft(agentUserId.value)
   } catch (error) {
     agentResult.value = null
     agentError.value = error.message || 'Agent 暂时没有响应，请确认后端和 AI 服务已启动。'
   } finally {
     agentLoading.value = false
-  }
-}
-
-async function copyAgentText(text) {
-  if (!text) return
-  try {
-    await navigator.clipboard.writeText(text)
-    ElMessage.success('已复制')
-  } catch (error) {
-    ElMessage.warning('浏览器暂不允许复制，请手动选中文案')
   }
 }
 
@@ -199,7 +187,7 @@ function searchSimilarFromAgent(item = {}) {
 
 function ensureAgentLogin(actionText) {
   if (authStore.isLoggedIn) return true
-  ElMessageBox.confirm(`${actionText}需要先登录，登录后 Agent 会继续把草稿带到对应流程。`, '需要登录', {
+  ElMessageBox.confirm(`${actionText}需要先登录。`, '需要登录', {
     confirmButtonText: '前往登录',
     cancelButtonText: '取消',
     type: 'warning',
@@ -207,197 +195,13 @@ function ensureAgentLogin(actionText) {
   return false
 }
 
-function inferPriceFromRange(value = '') {
-  const numbers = String(value).match(/\d+(?:\.\d+)?/g)?.map(Number).filter(Number.isFinite) || []
-  if (numbers.length === 0) return null
-  if (numbers.length === 1) return numbers[0]
-  return Math.round((numbers[0] + numbers[1]) / 2)
-}
-
-async function runAgentAction(key, action) {
-  if (agentActionLoading.value) return
-  agentActionLoading.value = key
-  try {
-    await action()
-  } catch (error) {
-    if (error !== 'cancel' && error !== 'close') {
-      ElMessage.error(error.message || 'Agent 执行动作失败')
-    }
-  } finally {
-    agentActionLoading.value = ''
-  }
-}
-
-async function confirmAgentAction(title, message) {
-  await ElMessageBox.confirm(message, title, {
-    confirmButtonText: '确认执行',
-    cancelButtonText: '取消',
-    type: 'warning',
-  })
-}
-
-async function agentSendChat(item = {}) {
-  const itemId = item.item_id || item.itemId || item.id
-  if (!itemId) return
-  if (!ensureAgentLogin('Agent 代发私聊')) return
-  await runAgentAction(`chat-${itemId}`, async () => {
-    await confirmAgentAction('确认由 Agent 发送私聊？', `Agent 将基于《${item.title || '该商品'}》创建会话，并发送推荐的咨询草稿。`)
-    const response = await chatApi.create({ itemId })
-    const chat = response.data || response
-    await chatApi.sendMessage(chat.chatId || chat.id, {
-      messageType: 'TEXT',
-      content: item.chat_draft || `同学你好，我对《${item.title || '这件商品'}》感兴趣，想了解一下成色、配件和方便面交的时间。`,
-    })
-    ElMessage.success('Agent 已发送私聊草稿')
-    router.push({ path: '/chats', query: { chatId: chat.chatId || chat.id } })
-  })
-}
-
-async function agentCreateOrder(item = {}) {
-  const itemId = item.item_id || item.itemId || item.id
-  if (!itemId) return
-  if (!ensureAgentLogin('Agent 预约商品')) return
-  await runAgentAction(`order-${itemId}`, async () => {
-    await confirmAgentAction('确认由 Agent 创建预约？', `Agent 将为《${item.title || '该商品'}》创建订单预约，后续仍需要卖家接单和你确认交易。`)
-    const response = await orderApi.create({
-      itemId,
-      tradeMode: 'OFFLINE',
-      message: item.chat_draft || `我想预约《${item.title || '这件商品'}》，方便的话请确认成色和面交时间。`,
-    })
-    const order = response.data || response
-    ElMessage.success('Agent 已创建订单预约')
-    router.push({ path: '/orders', query: { orderId: order.orderId || order.id } })
-  })
-}
-
-async function agentPublishWanted(draft) {
-  if (!draft) return
-  if (!ensureAgentLogin('Agent 发布求购')) return
-  await runAgentAction('wanted', async () => {
-    await confirmAgentAction('确认由 Agent 发布求购？', `Agent 将直接发布求购《${draft.title}》，发布后可在求购广场查看和关闭。`)
-    const response = await wantedApi.create({
-      title: draft.title,
-      description: draft.description || '',
-      campus: draft.campus || authStore.user?.campus || '校本部',
-      budgetMin: draft.budget_min || null,
-      budgetMax: draft.budget_max || null,
-    })
-    agentResult.value.created_wanted = response.data || response
-    ElMessage.success('Agent 已发布求购')
-    router.push('/wanted')
-  })
-}
-
-async function agentPublishSwap(draft) {
-  if (!draft) return
-  if (!ensureAgentLogin('Agent 发布换物')) return
-  await runAgentAction('swap', async () => {
-    const itemsResponse = await userApi.getMyItems({ page: 1, pageSize: 100 })
-    const myOnSaleItems = normalizeItemPage(itemsResponse).list.filter((item) => item.status === 'ON_SALE')
-    if (myOnSaleItems.length !== 1) {
-      useSwapDraft(draft)
-      ElMessage.info(myOnSaleItems.length === 0 ? '你还没有可用于换物的在售商品，先去发布一件闲置。' : '检测到多件在售商品，请在换物页选择拿来交换的商品。')
-      return
-    }
-    await confirmAgentAction('确认由 Agent 发布换物？', `Agent 将使用《${myOnSaleItems[0].title}》发布换物需求：${draft.expected_title || draft.title}。`)
-    const response = await swapApi.create({
-      itemId: myOnSaleItems[0].id,
-      expectedTitle: draft.expected_title || draft.title,
-      targetCategory: draft.target_category || draft.category || null,
-      description: draft.description || '',
-      campus: draft.campus || myOnSaleItems[0].campus || authStore.user?.campus || '校本部',
-    })
-    agentResult.value.created_swap = response.data || response
-    ElMessage.success('Agent 已发布换物需求')
-    router.push('/swap')
-  })
-}
-
-async function agentPublishItem(result) {
-  const draft = result?.draft
-  if (!draft) return
-  if (!ensureAgentLogin('Agent 发布商品')) return
-  await runAgentAction('publish-item', async () => {
-    const price = inferPriceFromRange(draft.price_range)
-    if (price === null) {
-      ElMessage.warning('Agent 草稿缺少可识别价格，请先填入发布页确认。')
-      usePublishDraft(result)
-      return
-    }
-    await confirmAgentAction('确认由 Agent 直接发布商品？', `Agent 将以 ${price} 元发布《${draft.title}》。当前没有图片会先无图上架，你也可以取消后去发布页补图。`)
-    const response = await itemApi.create({
-      title: draft.title,
-      description: draft.description,
-      price,
-      originalPrice: null,
-      condition: draft.condition,
-      category: draft.category,
-      campus: draft.campus_suggestion || authStore.user?.campus || '校本部',
-      dormitory: draft.trade_place_suggestion || '',
-      tradeModes: ['面交'],
-      swapSupported: Boolean(draft.swap_supported),
-      status: '上架',
-      imageUrls: [],
-    })
-    const item = response.data || response
-    agentResult.value.created_item = item
-    ElMessage.success('Agent 已发布商品')
-    router.push(`/items/${item.itemId || item.id}`)
-  })
-}
-
-function useWantedDraft(draft) {
-  if (!draft) return
-  sessionStorage.setItem('campus-agent-wanted-draft', JSON.stringify(draft))
-  if (!authStore.isLoggedIn) {
-    router.push({ path: '/login', query: { redirect: '/wanted' } })
-    return
-  }
-  router.push({ path: '/wanted', query: { fromAgent: 'buyer' } })
-}
-
-function useSwapDraft(draft) {
-  if (!draft) return
-  sessionStorage.setItem('campus-agent-swap-draft', JSON.stringify(draft))
-  if (!authStore.isLoggedIn) {
-    router.push({ path: '/login', query: { redirect: '/swap' } })
-    return
-  }
-  router.push({ path: '/swap', query: { fromAgent: 'buyer' } })
-}
-
-function usePublishDraft(result) {
-  if (!result?.draft) return
-  sessionStorage.setItem('campus-agent-publish-draft', JSON.stringify(result.draft))
-  if (!authStore.isLoggedIn) {
-    router.push({ path: '/login', query: { redirect: '/items/publish' } })
-    return
-  }
-  router.push({ path: '/items/publish', query: { fromAgent: 'seller' } })
-}
-
-watch(agentUserId, () => {
+watch(() => authStore.user?.userId || authStore.user?.id, () => {
   loadAgentHistory()
-  if (!loadAgentDraft()) {
-    agentMode.value = ''
-    agentInput.value = ''
-    agentResult.value = null
-    agentError.value = ''
-  }
-})
-
-watch([agentMode, agentInput], () => {
-  if (agentMode.value && agentInput.value.trim()) {
-    saveAgentDraft(agentUserId.value, { mode: agentMode.value, message: agentInput.value })
-    return
-  }
-  clearAgentDraft(agentUserId.value)
 })
 
 onMounted(() => {
   fetchRecommendedProducts()
   loadAgentHistory()
-  loadAgentDraft()
 })
 </script>
 
@@ -492,8 +296,8 @@ onMounted(() => {
         <div v-if="agentOpen" class="agent-panel">
           <header class="agent-panel-head">
             <div>
-              <span>Campus Agent</span>
-              <strong>{{ agentMode === 'buyer' ? '淘货 Agent' : agentMode === 'seller' ? '发布 Agent' : '你想先做什么？' }}</strong>
+              <span>Campus Trade Agent</span>
+              <strong>{{ agentMode === 'buyer' ? '可信买家导购' : '开始找商品' }}</strong>
             </div>
             <div class="agent-head-actions">
               <button v-if="hasAgentHistory" class="agent-text-btn" type="button" @click="clearAgentTurns">清空</button>
@@ -502,21 +306,16 @@ onMounted(() => {
           </header>
 
           <div v-if="!agentMode" class="agent-choice-grid">
-            <button type="button" @click="openAgent('buyer')">
+            <button type="button" @click="openAgent">
               <el-icon><Goods /></el-icon>
               <strong>我要淘货</strong>
-              <span>说预算、用途、校区，帮你筛商品和砍价。</span>
-            </button>
-            <button type="button" @click="openAgent('seller')">
-              <el-icon><EditPen /></el-icon>
-              <strong>我要发布</strong>
-              <span>一句话生成标题、描述、分类和风险提醒。</span>
+              <span>说预算、用途、校区，查询在售商品与可信信息。</span>
             </button>
           </div>
 
           <section v-if="!agentMode && hasAgentHistory" class="agent-history-list" aria-label="Agent 最近记录">
             <button v-for="record in agentHistory" :key="record.id" type="button" @click="restoreAgentTurn(record)">
-              <span>{{ record.mode === 'buyer' ? '淘货' : '发布' }} · {{ agentTurnTime(record) }}</span>
+              <span>淘货 · {{ agentTurnTime(record) }}</span>
               <strong>{{ agentTurnTitle(record) }}</strong>
               <small>{{ agentTurnSummary(record) }}</small>
             </button>
@@ -531,7 +330,7 @@ onMounted(() => {
                 resize="none"
                 maxlength="1000"
                 show-word-limit
-                :placeholder="agentMode === 'buyer' ? '例如：想买考研用 iPad，预算 1500，校本部面交' : '例如：出宿舍小冰箱，八成新，毕业搬宿舍用不上'"
+                placeholder="例如：想买考研用 iPad，预算 1500，校本部面交"
               />
               <el-button :loading="agentLoading" type="primary" @click="submitAgent">
                 <el-icon><Promotion /></el-icon>
@@ -542,6 +341,10 @@ onMounted(() => {
             <p v-if="agentError" class="agent-error">{{ agentError }}</p>
 
             <section v-if="agentResult?.agent === 'buyer'" class="agent-result-card">
+              <div class="agent-result-status">
+                <el-tag :type="agentModeLabel === '基础筛选' ? 'warning' : 'success'" effect="plain">{{ agentModeLabel }}</el-tag>
+                <small v-if="agentResult.runId">本次记录已保存，可在历史中查看</small>
+              </div>
               <p class="agent-summary">{{ agentResult.summary }}</p>
               <div class="agent-tags">
                 <span>{{ agentResult.parsed_need?.keyword || '校园闲置' }}</span>
@@ -559,64 +362,17 @@ onMounted(() => {
                 <small>建议砍价：{{ item.bargain_range }}</small>
                 <div class="agent-action-row">
                   <el-button v-if="item.item_id" text type="primary" @click="goAgentItem(item)">查看商品</el-button>
-                  <el-button v-if="item.item_id" text type="primary" :loading="agentActionLoading === `chat-${item.item_id}`" @click="agentSendChat(item)">Agent 发私聊</el-button>
-                  <el-button v-if="item.item_id" text :loading="agentActionLoading === `order-${item.item_id}`" @click="agentCreateOrder(item)">Agent 预约</el-button>
-                  <el-button text type="primary" @click="copyAgentText(item.chat_draft)">复制私聊草稿</el-button>
                   <el-button text @click="searchSimilarFromAgent(item)">搜相似</el-button>
                 </div>
               </article>
-
-              <article v-if="agentResult.wanted_draft" class="agent-rec-item agent-wanted-draft">
-                <div>
-                  <strong>{{ agentResult.wanted_draft.title }}</strong>
-                  <span>求购草稿</span>
+              <section v-if="agentTimeline.length" class="agent-timeline" aria-label="本次安全查询步骤">
+                <strong>本次安全查询</strong>
+                <div v-for="(step, index) in agentTimeline" :key="`${step.tool}-${index}`" class="agent-timeline-row">
+                  <span :class="['agent-step-dot', step.status === 'FAILED' ? 'is-failed' : '']"></span>
+                  <span>{{ timelineLabel(step) }}</span>
+                  <small>{{ step.status === 'FAILED' ? '未完成，已安全降级' : `${step.durationMs || 0} ms` }}</small>
                 </div>
-                <p>{{ agentResult.wanted_draft.description }}</p>
-                <div class="agent-action-row">
-                  <el-button text type="primary" @click="useWantedDraft(agentResult.wanted_draft)">去求购广场</el-button>
-                  <el-button text type="primary" :loading="agentActionLoading === 'wanted'" @click="agentPublishWanted(agentResult.wanted_draft)">Agent 发布求购</el-button>
-                  <el-button text @click="copyAgentText(agentResult.wanted_draft.description)">复制求购草稿</el-button>
-                  <el-button text @click="searchSimilarFromAgent()">搜相似商品</el-button>
-                </div>
-              </article>
-
-              <article v-if="agentResult.swap_draft" class="agent-rec-item agent-wanted-draft">
-                <div>
-                  <strong>{{ agentResult.swap_draft.title }}</strong>
-                  <span>换物草稿</span>
-                </div>
-                <p>{{ agentResult.swap_draft.description }}</p>
-                <div class="agent-action-row">
-                  <el-button text type="primary" @click="useSwapDraft(agentResult.swap_draft)">去换物专区</el-button>
-                  <el-button text type="primary" :loading="agentActionLoading === 'swap'" @click="agentPublishSwap(agentResult.swap_draft)">Agent 发布换物</el-button>
-                  <el-button text @click="copyAgentText(agentResult.swap_draft.description)">复制换物说明</el-button>
-                  <el-button text @click="router.push({ path: '/items', query: { keyword: agentResult.swap_draft.expected_title } })">搜可换商品</el-button>
-                </div>
-              </article>
-            </section>
-
-            <section v-if="agentResult?.agent === 'seller'" class="agent-result-card">
-              <article class="agent-draft-card">
-                <span>发布草稿</span>
-                <h3>{{ agentResult.draft.title }}</h3>
-                <p>{{ agentResult.draft.description }}</p>
-                <div class="agent-tags">
-                  <span>{{ agentResult.draft.category }}</span>
-                  <span>{{ agentResult.draft.condition }}</span>
-                  <span>{{ agentResult.draft.price_range }}</span>
-                  <span v-if="agentResult.draft.swap_supported">接受置换</span>
-                </div>
-                <small>建议地点：{{ agentResult.draft.trade_place_suggestion }}</small>
-                <div class="agent-action-row">
-                  <el-button text type="primary" @click="usePublishDraft(agentResult)">填入发布页</el-button>
-                  <el-button text type="primary" :loading="agentActionLoading === 'publish-item'" @click="agentPublishItem(agentResult)">Agent 直接发布</el-button>
-                  <el-button text @click="copyAgentText(agentResult.draft.description)">复制描述</el-button>
-                </div>
-              </article>
-
-              <ul class="agent-tip-list">
-                <li v-for="tip in agentResult.risk_tips" :key="tip">{{ tip }}</li>
-              </ul>
+              </section>
             </section>
           </div>
         </div>

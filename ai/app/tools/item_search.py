@@ -2,12 +2,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-import logging
-from typing import Any
-
-from app.config import Settings
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -58,87 +52,13 @@ def infer_keyword(text: str) -> str:
     return cleaned[:30] or "校园闲置"
 
 
-def search_items(settings: Settings, keyword: str, campus: str = "", budget: int | None = None, limit: int = 8) -> list[ItemRow]:
-    try:
-        import pymysql
-    except Exception:
-        return []
-    if not settings.db_user or not settings.db_password:
-        logger.info("item_search_skipped reason=database_credentials_not_configured")
-        return []
+def rank_items(
+    items: list[ItemRow], budget: int | None, campus: str,
+    preferred_categories: set[str] | None = None, preferred_campuses: set[str] | None = None,
+) -> list[ItemRow]:
+    preferred_categories = preferred_categories or set()
+    preferred_campuses = preferred_campuses or set()
 
-    words = [word for word in re.split(r"\s+", keyword) if word]
-    where = ["i.deleted = 0", "i.status = 'ON_SALE'"]
-    params: list[Any] = []
-
-    if words:
-        like_parts = []
-        for word in words[:4]:
-            like_parts.append("(i.title LIKE %s OR i.description LIKE %s OR c.name LIKE %s)")
-            like = f"%{word}%"
-            params.extend([like, like, like])
-        where.append("(" + " OR ".join(like_parts) + ")")
-    if campus:
-        where.append("i.campus = %s")
-        params.append(campus)
-    if budget:
-        where.append("i.price <= %s")
-        params.append(budget * 1.15)
-
-    sql = f"""
-        SELECT i.id AS item_id, i.title, COALESCE(i.description, '') AS description,
-               i.price, i.original_price, i.condition_level AS condition_level,
-               i.campus, COALESCE(i.trade_place, '') AS trade_place,
-               c.name AS category, i.view_count, i.favorite_count,
-               COALESCE(img.image_url, '') AS image_url
-        FROM items i
-        JOIN categories c ON c.id = i.category_id
-        LEFT JOIN item_images img ON img.item_id = i.id AND img.sort_order = 0
-        WHERE {' AND '.join(where)}
-        ORDER BY i.favorite_count DESC, i.view_count DESC, i.created_at DESC
-        LIMIT %s
-    """
-    params.append(max(1, min(int(limit), 20)))
-
-    try:
-        connection = pymysql.connect(
-            host=settings.db_host,
-            port=settings.db_port,
-            user=settings.db_user,
-            password=settings.db_password,
-            database=settings.db_name,
-            charset="utf8mb4",
-            cursorclass=pymysql.cursors.DictCursor,
-            connect_timeout=3,
-            read_timeout=4,
-        )
-        with connection:
-            with connection.cursor() as cursor:
-                cursor.execute(sql, params)
-                rows = cursor.fetchall()
-        return [
-            ItemRow(
-                item_id=int(row["item_id"]),
-                title=row["title"],
-                description=row["description"],
-                price=float(row["price"]),
-                original_price=float(row["original_price"]) if row["original_price"] is not None else None,
-                condition=row["condition_level"],
-                campus=row["campus"],
-                trade_place=row["trade_place"],
-                category=row["category"],
-                view_count=int(row["view_count"] or 0),
-                favorite_count=int(row["favorite_count"] or 0),
-                image_url=row["image_url"],
-            )
-            for row in rows
-        ]
-    except Exception as exc:
-        logger.warning("item_search_failed error_type=%s", type(exc).__name__)
-        return []
-
-
-def rank_items(items: list[ItemRow], budget: int | None, campus: str) -> list[ItemRow]:
     def score(item: ItemRow) -> float:
         value = item.favorite_count * 3 + item.view_count * 0.08
         if campus and item.campus == campus:
@@ -148,6 +68,10 @@ def rank_items(items: list[ItemRow], budget: int | None, campus: str) -> list[It
             value += max(0, 30 - diff / max(budget, 1) * 30)
         if item.condition in {"NEW", "LIKE_NEW"}:
             value += 8
+        if item.category in preferred_categories:
+            value += 14
+        if item.campus in preferred_campuses:
+            value += 10
         return value
 
     return sorted(items, key=score, reverse=True)

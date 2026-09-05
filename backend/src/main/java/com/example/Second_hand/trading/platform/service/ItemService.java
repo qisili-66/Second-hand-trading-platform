@@ -46,10 +46,11 @@ public class ItemService {
 	private final FavoriteMapper favoriteMapper;
 	private final ItemCommentMapper itemCommentMapper;
 	private final MessageService messageService;
+	private final KnowledgeService knowledgeService;
 
 	public ItemService(JdbcTemplate jdbcTemplate, ItemMapper itemMapper, ItemImageMapper itemImageMapper,
 			FileMapper fileMapper, FavoriteMapper favoriteMapper, ItemCommentMapper itemCommentMapper,
-			MessageService messageService) {
+			MessageService messageService, KnowledgeService knowledgeService) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.itemMapper = itemMapper;
 		this.itemImageMapper = itemImageMapper;
@@ -57,6 +58,7 @@ public class ItemService {
 		this.favoriteMapper = favoriteMapper;
 		this.itemCommentMapper = itemCommentMapper;
 		this.messageService = messageService;
+		this.knowledgeService = knowledgeService;
 	}
 
 	public List<Map<String, Object>> categories() {
@@ -90,6 +92,7 @@ public class ItemService {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "商品不存在");
 		}
 
+		knowledgeService.enqueueItem(item.getId(), "UPSERT");
 		return itemRow(item);
 	}
 
@@ -209,6 +212,7 @@ public class ItemService {
 		if (hasAnyKey(body, "imageUrls", "images", "coverUrl", "imageUrl")) {
 			replaceImages(item.getId(), sellerId, imageUrls(body));
 		}
+		knowledgeService.enqueueItem(item.getId(), "UPSERT");
 		return true;
 	}
 
@@ -220,6 +224,7 @@ public class ItemService {
 		}
 		item.setStatus("REMOVED");
 		itemMapper.updateById(item);
+		knowledgeService.enqueueItem(item.getId(), "DELETE");
 		return true;
 	}
 
@@ -231,6 +236,7 @@ public class ItemService {
 		}
 		item.setStatus("ON_SALE");
 		itemMapper.updateById(item);
+		knowledgeService.enqueueItem(item.getId(), "UPSERT");
 		return true;
 	}
 
@@ -241,6 +247,7 @@ public class ItemService {
 		item.setStatus("REMOVED");
 		item.setDeleted(1);
 		itemMapper.updateById(item);
+		knowledgeService.enqueueItem(item.getId(), "DELETE");
 		return true;
 	}
 

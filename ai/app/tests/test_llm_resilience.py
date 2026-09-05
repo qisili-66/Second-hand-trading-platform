@@ -4,13 +4,13 @@ import time
 import pytest
 
 from app.config import Settings
-from app.llm import LLMInvocationError, LLMResponseFormatError, LLMRuntime, QwenLLM
+from app.llm import ExternalLLM, LLMInvocationError, LLMResponseFormatError, LLMRuntime
 from app.schemas import BuyerAgentResponse
 
 
 def settings(**overrides):
     values = {
-        "qwen_api_key": "test-key",
+        "external_llm_api_key": "test-key",
         "llm_timeout_seconds": 1,
         "llm_max_retries": 0,
         "llm_queue_timeout_ms": 10,
@@ -21,7 +21,7 @@ def settings(**overrides):
     return Settings(**values)
 
 
-class FailingQwenLLM(QwenLLM):
+class FailingExternalLLM(ExternalLLM):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.calls = 0
@@ -31,7 +31,7 @@ class FailingQwenLLM(QwenLLM):
         raise LLMInvocationError("upstream_unavailable")
 
 
-class BlockingQwenLLM(QwenLLM):
+class BlockingExternalLLM(ExternalLLM):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.started = threading.Event()
@@ -45,7 +45,7 @@ class BlockingQwenLLM(QwenLLM):
 
 def test_circuit_opens_after_bounded_failures_and_skips_future_calls():
     runtime = LLMRuntime(max_concurrent_requests=1, failure_threshold=2, recovery_seconds=30)
-    llm = FailingQwenLLM(settings(), runtime=runtime)
+    llm = FailingExternalLLM(settings(), runtime=runtime)
 
     assert llm.complete_json("system", "user", BuyerAgentResponse) is None
     assert llm.complete_json("system", "user", BuyerAgentResponse) is None
@@ -57,7 +57,7 @@ def test_circuit_opens_after_bounded_failures_and_skips_future_calls():
 
 def test_busy_runtime_returns_fallback_without_starting_another_upstream_call():
     runtime = LLMRuntime(max_concurrent_requests=1, failure_threshold=3, recovery_seconds=30)
-    llm = BlockingQwenLLM(settings(llm_timeout_seconds=2), runtime=runtime)
+    llm = BlockingExternalLLM(settings(llm_timeout_seconds=2), runtime=runtime)
     first_call = threading.Thread(
         target=lambda: llm.complete_json("system", "user", BuyerAgentResponse), daemon=True
     )
@@ -75,7 +75,7 @@ def test_busy_runtime_returns_fallback_without_starting_another_upstream_call():
 
 
 def test_invalid_json_is_reported_as_a_format_error_without_guessing():
-    llm = QwenLLM(settings(), runtime=LLMRuntime(1, 3, 30))
+    llm = ExternalLLM(settings(), runtime=LLMRuntime(1, 3, 30))
 
     with pytest.raises(LLMResponseFormatError):
         llm._extract_json("这不是 JSON，也不包含对象")

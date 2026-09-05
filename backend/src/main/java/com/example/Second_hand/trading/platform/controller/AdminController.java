@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.Second_hand.trading.platform.dto.ApiResponse;
 import com.example.Second_hand.trading.platform.dto.PageResponse;
 import com.example.Second_hand.trading.platform.service.AdminService;
+import com.example.Second_hand.trading.platform.service.AgentInsightsService;
 import com.example.Second_hand.trading.platform.service.AuthService;
 import com.example.Second_hand.trading.platform.service.ItemService;
 import com.example.Second_hand.trading.platform.service.TradeWorkflowService;
@@ -30,19 +31,26 @@ public class AdminController {
 	private final UserService userService;
 	private final ItemService itemService;
 	private final TradeWorkflowService tradeWorkflowService;
+	private final AgentInsightsService agentInsightsService;
 
 	public AdminController(AdminService adminService, AuthService authService, UserService userService, ItemService itemService,
-			TradeWorkflowService tradeWorkflowService) {
+			TradeWorkflowService tradeWorkflowService, AgentInsightsService agentInsightsService) {
 		this.adminService = adminService;
 		this.authService = authService;
 		this.userService = userService;
 		this.itemService = itemService;
 		this.tradeWorkflowService = tradeWorkflowService;
+		this.agentInsightsService = agentInsightsService;
 	}
 
 	@GetMapping("/dashboard")
 	public ApiResponse<Map<String, Object>> dashboard() {
 		return ApiResponse.success(adminService.dashboard());
+	}
+
+	@GetMapping("/agent-operations")
+	public ApiResponse<Map<String, Object>> agentOperations() {
+		return ApiResponse.success(agentInsightsService.operationsInsights());
 	}
 
 	@PatchMapping("/password")

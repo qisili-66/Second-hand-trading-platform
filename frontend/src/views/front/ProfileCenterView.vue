@@ -5,7 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import OrderReview from '../../components/OrderReview.vue'
 import ProductListItem from '../../components/product/ProductListItem.vue'
 import ReviewList from '../../components/ReviewList.vue'
-import { fileApi, itemApi, orderApi, swapApi, userApi, wantedApi } from '../../services/api'
+import { agentApi, fileApi, itemApi, orderApi, swapApi, userApi, wantedApi } from '../../services/api'
 import { normalizeExchangePage, normalizeItemPage, normalizeOrder, normalizePurchasePage } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
 
@@ -26,6 +26,8 @@ const avatarInput = ref(null)
 const avatarUploading = ref(false)
 const reviewDialogVisible = ref(false)
 const reviewOrder = ref(null)
+const buyerInsights = ref({ favoriteCategories: [], favoriteCampuses: [] })
+const sellerInsights = ref({ topItems: [] })
 
 const menuItems = [
   { key: 'selling', label: '我的在售商品' },
@@ -33,6 +35,7 @@ const menuItems = [
   { key: 'favorites', label: '我的收藏' },
   { key: 'notifications', label: '系统通知' },
   { key: 'reviews', label: '我的评价' },
+  { key: 'insights', label: '经营与偏好洞察' },
   { key: 'wanted', label: '我的求购' },
   { key: 'swap', label: '以物换物' },
   { key: 'privacy', label: '隐私设置' },
@@ -159,6 +162,9 @@ async function fetchUserItems() {
     myProducts.value = normalizeItemPage(itemsResponse).list
     favoriteProducts.value = normalizeItemPage(favoritesResponse).list
     orders.value = (ordersResponse.data?.list || []).map(normalizeOrder)
+    const [buyerResult, sellerResult] = await Promise.allSettled([agentApi.buyerInsights(), agentApi.sellerInsights()])
+    buyerInsights.value = buyerResult.status === 'fulfilled' ? (buyerResult.value.data || buyerResult.value || {}) : {}
+    sellerInsights.value = sellerResult.status === 'fulfilled' ? (sellerResult.value.data || sellerResult.value || {}) : {}
     await fetchBazaarItems()
     await fetchNotifications()
   } catch (error) {
@@ -658,6 +664,17 @@ function openReview(order) {
 
           <div v-else-if="activeMenu === 'reviews'" class="review-list">
             <ReviewList :user-id="currentUserId" />
+          </div>
+
+          <div v-else-if="activeMenu === 'insights'" class="agent-insights">
+            <el-alert type="info" :closable="false" title="以下是基于你的商品、收藏、订单和评价的只读汇总，不会触发交易操作。" />
+            <div class="agent-insight-grid">
+              <div><strong>{{ sellerInsights.onSaleItems || 0 }}</strong><span>在售商品</span></div><div><strong>{{ sellerInsights.totalViews || 0 }}</strong><span>累计浏览</span></div><div><strong>{{ sellerInsights.totalFavorites || 0 }}</strong><span>累计收藏</span></div><div><strong>{{ sellerInsights.averageRating || 0 }}</strong><span>平均评价</span></div>
+            </div>
+            <h3>买家偏好</h3><p>{{ buyerInsights.summary }}</p>
+            <el-tag v-for="row in buyerInsights.favoriteCategories || []" :key="row.category" effect="plain">{{ row.category }} {{ row.count }}</el-tag>
+            <h3>最受关注的我的商品</h3>
+            <el-table :data="sellerInsights.topItems || []" size="small"><el-table-column prop="title" label="商品" /><el-table-column prop="viewCount" label="浏览" /><el-table-column prop="favoriteCount" label="收藏" /></el-table>
           </div>
 
           <div v-else-if="activeMenu === 'wanted'" class="profile-item-list">

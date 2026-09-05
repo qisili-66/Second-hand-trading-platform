@@ -20,30 +20,53 @@ def test_dump_json_serializes_pydantic_models_without_ascii_escaping():
     assert "我想买 iPad" in payload
 
 
-def test_buyer_endpoint_accepts_prompt_payload(monkeypatch):
-    monkeypatch.setattr(main, "_settings", lambda: Settings(qwen_api_key="", db_password="invalid"))
+def test_legacy_buyer_and_seller_endpoints_are_removed():
     client = TestClient(main.app)
 
-    response = client.post("/agents/buyer", json={"prompt": "我想买一个考研用的 iPad，预算 1500"})
-
-    assert response.status_code == 200
-    assert response.json()["agent"] == "buyer"
+    assert client.post("/agents/buyer", json={"message": "想买 iPad"}).status_code == 404
+    assert client.post("/agents/seller", json={"message": "发布冰箱"}).status_code == 404
 
 
-def test_buyer_endpoint_returns_clear_error_without_body():
+def test_buyer_run_requires_a_request_body_after_service_authentication(monkeypatch):
+    monkeypatch.setattr(main, "_settings", lambda: Settings(agent_service_token="internal-token"))
     client = TestClient(main.app)
 
-    response = client.post("/agents/buyer")
+    response = client.post("/agents/buyer/runs", headers={"X-Agent-Service-Token": "internal-token"})
 
     assert response.status_code == 400
     assert response.json()["detail"] == "请先输入 Agent 需求内容"
 
 
-def test_seller_endpoint_accepts_user_message_payload(monkeypatch):
-    monkeypatch.setattr(main, "_settings", lambda: Settings(qwen_api_key="", db_password="invalid"))
+def test_buyer_run_rejects_missing_or_incorrect_service_token(monkeypatch):
+    monkeypatch.setattr(main, "_settings", lambda: Settings(agent_service_token="internal-token"))
     client = TestClient(main.app)
 
-    response = client.post("/agents/seller", json={"userMessage": "出一个宿舍小冰箱，八成新"})
+    payload = {
+        "message": "想买考研 iPad，预算 1500",
+        "userId": 7,
+        "runId": "run-123",
+        "traceId": "trace-123",
+    }
+    assert client.post("/agents/buyer/runs", json=payload).status_code == 401
+    assert client.post("/agents/buyer/runs", json=payload, headers={"X-Agent-Service-Token": "wrong"}).status_code == 401
+
+
+def test_buyer_run_returns_auditable_rule_fallback_when_tool_token_is_missing(monkeypatch):
+    monkeypatch.setattr(main, "_settings", lambda: Settings(external_llm_api_key="", agent_service_token="internal-token"))
+    client = TestClient(main.app)
+
+    response = client.post("/agents/buyer/runs", json={
+        "message": "想买考研 iPad，预算 1500",
+        "userId": 7,
+        "runId": "run-123",
+        "traceId": "trace-123",
+    }, headers={"X-Agent-Service-Token": "internal-token"})
 
     assert response.status_code == 200
-    assert response.json()["agent"] == "seller"
+    body = response.json()
+    assert body["mode"] == "fallback"
+    assert body["run_id"] == "run-123"
+    assert body["trace_id"] == "trace-123"
+    assert body["steps"][0]["status"] == "FAILED"
+    assert body["recommendations"] == []
+    assert not {"chat_draft", "wanted_draft", "swap_draft", "should_create_wanted"} & set(body)

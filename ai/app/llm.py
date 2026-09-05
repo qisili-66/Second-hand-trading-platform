@@ -108,7 +108,7 @@ class LLMRuntime:
             return LLMRuntimeStatus(state, self._consecutive_failures, self.max_concurrent_requests)
 
 
-class QwenLLM:
+class ExternalLLM:
     _runtimes: ClassVar[dict[tuple[str, str, int, int, int], LLMRuntime]] = {}
     _runtimes_lock: ClassVar[threading.Lock] = threading.Lock()
 
@@ -119,8 +119,8 @@ class QwenLLM:
     @classmethod
     def _shared_runtime(cls, settings: Settings) -> LLMRuntime:
         key = (
-            settings.qwen_base_url,
-            settings.qwen_model,
+            settings.external_llm_base_url,
+            settings.external_llm_model,
             settings.llm_max_concurrent_requests,
             settings.llm_failure_threshold,
             settings.llm_circuit_recovery_seconds,
@@ -146,7 +146,8 @@ class QwenLLM:
 
     @property
     def configured(self) -> bool:
-        return bool(self.settings.qwen_api_key.strip())
+        api_key = self.settings.external_llm_api_key.strip()
+        return bool(api_key) and not api_key.startswith("replace_with_")
 
     @property
     def runtime_status(self) -> LLMRuntimeStatus:
@@ -156,7 +157,7 @@ class QwenLLM:
         if not self.configured:
             return None
         if not self.runtime.allow_request():
-            logger.warning("llm_circuit_open model=%s", self.settings.qwen_model)
+            logger.warning("llm_circuit_open model=%s", self.settings.external_llm_model)
             return None
 
         deadline = time.monotonic() + self.settings.llm_timeout_seconds
@@ -166,7 +167,7 @@ class QwenLLM:
                 return self._fail("timeout")
             if not self.runtime.try_acquire_slot(min(remaining, self.settings.llm_queue_timeout_ms / 1000)):
                 was_half_open_probe = self.runtime.cancel_half_open_probe()
-                logger.warning("llm_overloaded model=%s", self.settings.qwen_model)
+                logger.warning("llm_overloaded model=%s", self.settings.external_llm_model)
                 if was_half_open_probe:
                     return self._fail("half_open_overloaded")
                 return None
@@ -181,10 +182,10 @@ class QwenLLM:
                 self.runtime.record_success()
                 return result
             except FutureTimeoutError:
-                logger.warning("llm_timeout model=%s attempt=%s", self.settings.qwen_model, attempt + 1)
+                logger.warning("llm_timeout model=%s attempt=%s", self.settings.external_llm_model, attempt + 1)
                 return self._fail("timeout")
             except LLMResponseFormatError:
-                logger.warning("llm_invalid_response_format model=%s", self.settings.qwen_model)
+                logger.warning("llm_invalid_response_format model=%s", self.settings.external_llm_model)
                 return self._fail("invalid_format")
             except LLMInvocationError as exc:
                 if attempt >= self.settings.llm_max_retries or deadline - time.monotonic() <= 0:
@@ -193,7 +194,7 @@ class QwenLLM:
                     self.settings.llm_retry_backoff_ms / 1000 * (2**attempt),
                     max(deadline - time.monotonic(), 0),
                 )
-                logger.warning("llm_retry model=%s attempt=%s reason=%s", self.settings.qwen_model, attempt + 1, exc)
+                logger.warning("llm_retry model=%s attempt=%s reason=%s", self.settings.external_llm_model, attempt + 1, exc)
                 if delay > 0:
                     time.sleep(delay)
         return self._fail("retry_exhausted")
@@ -208,7 +209,7 @@ class QwenLLM:
         circuit_opened = self.runtime.record_failure()
         logger.warning(
             "llm_fallback model=%s reason=%s circuit_opened=%s",
-            self.settings.qwen_model,
+            self.settings.external_llm_model,
             reason,
             circuit_opened,
         )
@@ -222,9 +223,9 @@ class QwenLLM:
 
         try:
             llm = ChatOpenAI(
-                api_key=self.settings.qwen_api_key,
-                base_url=self.settings.qwen_base_url,
-                model=self.settings.qwen_model,
+                api_key=self.settings.external_llm_api_key,
+                base_url=self.settings.external_llm_base_url,
+                model=self.settings.external_llm_model,
                 temperature=0.2,
                 timeout=self.settings.llm_timeout_seconds,
                 max_retries=0,

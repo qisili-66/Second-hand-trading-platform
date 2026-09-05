@@ -47,6 +47,8 @@ const menuItems = [
   { path: '/admin/reports', label: '举报审核管理', icon: Warning },
   { path: '/admin/settings', label: '系统配置', icon: Setting },
   { path: '/admin/notices', label: '公告管理', icon: Document },
+  { path: '/admin/knowledge', label: 'Agent 知识库', icon: Document },
+  { path: '/admin/agent-operations', label: 'Agent 运营指标', icon: DataAnalysis },
 ]
 
 const notificationItems = computed(() => [

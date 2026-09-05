@@ -1,6 +1,7 @@
 package com.example.Second_hand.trading.platform.config;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -13,13 +14,18 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
 	private final JwtService jwtService;
+	private final String agentServiceToken;
 
-	public AuthInterceptor(JwtService jwtService) {
+	public AuthInterceptor(JwtService jwtService, @Value("${app.ai.service-token:}") String agentServiceToken) {
 		this.jwtService = jwtService;
+		this.agentServiceToken = agentServiceToken;
 	}
 
 	@Override
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+		if (isInternalAgentRequest(request)) {
+			return true;
+		}
 		if ("OPTIONS".equalsIgnoreCase(request.getMethod()) || isPublicApi(request)) {
 			return true;
 		}
@@ -37,6 +43,17 @@ public class AuthInterceptor implements HandlerInterceptor {
 		request.setAttribute("authId", claims.id());
 		request.setAttribute("authAccount", claims.account());
 		request.setAttribute("authRole", claims.role());
+		return true;
+	}
+
+	private boolean isInternalAgentRequest(HttpServletRequest request) {
+		if (!request.getRequestURI().startsWith("/api/internal/agent-tools/")) {
+			return false;
+		}
+		if (agentServiceToken == null || agentServiceToken.isBlank()
+				|| !agentServiceToken.equals(request.getHeader("X-Agent-Service-Token"))) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Agent service authentication failed");
+		}
 		return true;
 	}
 

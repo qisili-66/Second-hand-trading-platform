@@ -4,7 +4,6 @@ setlocal EnableExtensions
 set "AI_DIR=%~dp0"
 set "ROOT=%AI_DIR%..\"
 set "VENV_DIR=%AI_DIR%.venv"
-set "INSTALL_MARKER=%VENV_DIR%\.requirements-installed"
 set "PYTHON_CMD="
 
 cd /d "%AI_DIR%" || exit /b 1
@@ -60,15 +59,9 @@ if not exist "%VENV_DIR%\Scripts\python.exe" (
 
 set "VENV_PY=%VENV_DIR%\Scripts\python.exe"
 
-if exist "%INSTALL_MARKER%" (
-  echo.
-  echo [Campus AI] Dependencies already installed. Skipping pip install.
-  goto :dependencies_ready
-)
-
 echo.
-echo [Campus AI] Installing dependencies for the first time...
-echo [Campus AI] This may take a few minutes. Future starts will skip this step.
+echo [Campus AI] Synchronizing Python dependencies...
+echo [Campus AI] pip will reuse already installed compatible packages.
 "%VENV_PY%" -m pip install --upgrade pip
 if errorlevel 1 (
   echo [WARN] Failed to upgrade pip. Continuing with current pip...
@@ -82,15 +75,12 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo installed > "%INSTALL_MARKER%"
-
-:dependencies_ready
 if not exist "%AI_DIR%.env" (
   echo.
   echo [Campus AI] Creating .env from .env.example...
   copy "%AI_DIR%.env.example" "%AI_DIR%.env" >nul
-  echo [WARN] .env has been created. Fill QWEN_API_KEY for Qwen-enhanced output.
-  echo [WARN] Without QWEN_API_KEY, the AI service still runs with rule-based fallback.
+  echo [WARN] .env has been created. Fill EXTERNAL_LLM_API_KEY before using model-enhanced output.
+  echo [WARN] Without an API key, the AI service still runs with rule-based fallback.
 )
 
 echo.

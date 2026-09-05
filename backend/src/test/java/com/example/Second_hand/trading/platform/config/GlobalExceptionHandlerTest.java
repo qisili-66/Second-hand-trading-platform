@@ -3,6 +3,7 @@ package com.example.Second_hand.trading.platform.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.ResponseEntity;
 
 import com.example.Second_hand.trading.platform.dto.ApiResponse;
@@ -18,6 +19,16 @@ class GlobalExceptionHandlerTest {
 		assertAgentFailure(Reason.TIMEOUT, 504, 50401);
 		assertAgentFailure(Reason.INVALID_RESPONSE, 502, 50201);
 		assertAgentFailure(Reason.UNAVAILABLE, 503, 50301);
+	}
+
+	@Test
+	void mapsDatabaseFailuresToSafeServiceUnavailableResponse() {
+		ResponseEntity<ApiResponse<Object>> response = handler.handleDataAccess(
+				new DataAccessResourceFailureException("database connection refused"));
+
+		assertEquals(503, response.getStatusCode().value());
+		assertEquals(50300, response.getBody().code());
+		assertEquals("数据库暂不可用，请稍后重试", response.getBody().message());
 	}
 
 	private void assertAgentFailure(Reason reason, int expectedStatus, int expectedCode) {

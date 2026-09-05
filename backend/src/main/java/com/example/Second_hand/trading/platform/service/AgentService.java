@@ -32,6 +32,7 @@ public class AgentService {
 	private final HttpClient httpClient;
 	private final ObjectMapper objectMapper;
 	private final String aiBaseUrl;
+	private final String agentServiceToken;
 	private final Duration timeout;
 	private final Semaphore requestSlots;
 	private final long queueTimeoutMillis;
@@ -39,11 +40,13 @@ public class AgentService {
 	public AgentService(
 			ObjectMapper objectMapper,
 			@Value("${app.ai.base-url:http://127.0.0.1:8001}") String aiBaseUrl,
+			@Value("${app.ai.service-token:}") String agentServiceToken,
 			@Value("${app.ai.timeout-seconds:25}") long timeoutSeconds,
 			@Value("${app.ai.max-concurrent-requests:8}") int maxConcurrentRequests,
 			@Value("${app.ai.queue-timeout-ms:150}") long queueTimeoutMillis) {
 		this.objectMapper = objectMapper;
 		this.aiBaseUrl = trimTrailingSlash(aiBaseUrl);
+		this.agentServiceToken = agentServiceToken == null ? "" : agentServiceToken.trim();
 		this.timeout = Duration.ofSeconds(Math.max(1, Math.min(timeoutSeconds, 120)));
 		this.requestSlots = new Semaphore(Math.max(1, Math.min(maxConcurrentRequests, 64)));
 		this.queueTimeoutMillis = Math.max(0, Math.min(queueTimeoutMillis, 5_000));
@@ -53,16 +56,10 @@ public class AgentService {
 				.build();
 	}
 
-	public Map<String, Object> buyer(Map<String, Object> body) {
+	public Map<String, Object> buyerRun(Map<String, Object> body) {
 		Map<String, Object> normalized = normalizeRequest(body);
 		validateRequest(normalized);
-		return post("/agents/buyer", normalized);
-	}
-
-	public Map<String, Object> seller(Map<String, Object> body) {
-		Map<String, Object> normalized = normalizeRequest(body);
-		validateRequest(normalized);
-		return post("/agents/seller", normalized);
+		return post("/agents/buyer/runs", normalized);
 	}
 
 	private Map<String, Object> post(String path, Map<String, Object> body) {
@@ -79,6 +76,7 @@ public class AgentService {
 					.version(HttpClient.Version.HTTP_1_1)
 					.timeout(timeout)
 					.header("Content-Type", "application/json; charset=utf-8")
+					.header("X-Agent-Service-Token", agentServiceToken)
 					.POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
 					.build();
 			HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());

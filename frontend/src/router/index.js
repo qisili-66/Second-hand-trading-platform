@@ -135,6 +135,18 @@ const router = createRouter({
           component: () => import('../views/admin/AdminNoticesView.vue'),
           meta: { title: '公告管理' },
         },
+        {
+          path: 'knowledge',
+          name: 'admin-knowledge',
+          component: () => import('../views/admin/AdminKnowledgeView.vue'),
+          meta: { title: 'Agent 知识库' },
+        },
+        {
+          path: 'agent-operations',
+          name: 'admin-agent-operations',
+          component: () => import('../views/admin/AdminAgentOperationsView.vue'),
+          meta: { title: 'Agent 运营指标' },
+        },
       ],
     },
     {

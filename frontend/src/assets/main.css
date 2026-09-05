@@ -20,6 +20,115 @@
   --el-color-primary-dark-2: #e96500;
 }
 
+/* Read-only Agent explanation and operations surfaces. */
+.agent-result-status,
+.agent-timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-result-status {
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.agent-result-status small,
+.agent-timeline-row small {
+  color: #82715f;
+  font-size: 12px;
+}
+
+.agent-timeline {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(48, 32, 20, .08);
+}
+
+.agent-timeline > strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #4a3f34;
+  font-size: 13px;
+}
+
+.agent-timeline-row {
+  min-height: 28px;
+}
+
+.agent-timeline-row small {
+  margin-left: auto;
+}
+
+.agent-step-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #2f7a55;
+}
+
+.agent-step-dot.is-failed {
+  background: #c0453c;
+}
+
+.agent-insights {
+  display: grid;
+  gap: 16px;
+}
+
+.agent-insight-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.agent-insight-grid > div {
+  padding: 14px;
+  border: 1px solid rgba(48, 32, 20, .07);
+  border-radius: 14px;
+  background: #faf6f0;
+}
+
+.agent-insight-grid strong,
+.agent-insight-grid span {
+  display: block;
+}
+
+.agent-insight-grid strong {
+  color: #1f1710;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-insight-grid span {
+  margin-top: 4px;
+  color: #82715f;
+  font-size: 12px;
+}
+
+.agent-operations-page {
+  display: grid;
+  gap: 18px;
+}
+
+.agent-operations-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.agent-failure-card p {
+  color: #6b625a;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (max-width: 760px) {
+  .agent-insight-grid,
+  .agent-operations-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 *,
 *::before,
 *::after {

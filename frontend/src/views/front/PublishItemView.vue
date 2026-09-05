@@ -31,28 +31,6 @@ const form = reactive({
   swapSupported: false,
 })
 
-function readAgentPublishDraft() {
-  if (!authStore.isLoggedIn) return
-  const raw = sessionStorage.getItem('campus-agent-publish-draft')
-  if (!raw) return
-  try {
-    const draft = JSON.parse(raw)
-    form.title = draft.title || form.title
-    form.desc = draft.description || form.desc
-    form.condition = normalizeCondition(draft.condition) || form.condition
-    form.category = normalizeCategory(draft.category) || form.category
-    form.campus = draft.campus_suggestion || form.campus
-    form.dorm = draft.trade_place_suggestion || form.dorm
-    const inferredPrice = inferPriceFromRange(draft.price_range)
-    if (inferredPrice !== null) form.price = inferredPrice
-    form.swapSupported = Boolean(draft.swap_supported || draft.accept_swap)
-    sessionStorage.removeItem('campus-agent-publish-draft')
-    ElMessage.success('已填入 Agent 发布草稿，补充图片后即可保存或发布')
-  } catch (error) {
-    sessionStorage.removeItem('campus-agent-publish-draft')
-  }
-}
-
 async function fetchCategories() {
   try {
     categoryOptions.value = categoryNames(await categoryApi.list())
@@ -60,29 +38,6 @@ async function fetchCategories() {
     categoryOptions.value = fallbackCategories
     console.error(error)
   }
-}
-
-function normalizeCategory(value) {
-  return categoryOptions.value.includes(value) ? value : ''
-}
-
-function normalizeCondition(value = '') {
-  if (conditions.includes(value)) return value
-  if (value.includes('9')) return '9成新'
-  if (value.includes('8')) return '8成新'
-  if (value.includes('全新')) return '全新'
-  if (value.includes('明显')) return '明显使用'
-  if (value.includes('轻微')) return '轻微使用'
-  return ''
-}
-
-function inferPriceFromRange(value = '') {
-  const matches = String(value).match(/\d+(?:\.\d+)?/g)
-  if (!matches?.length) return null
-  const numbers = matches.map(Number).filter((number) => Number.isFinite(number))
-  if (numbers.length === 0) return null
-  if (numbers.length === 1) return numbers[0]
-  return Math.round((numbers[0] + numbers[1]) / 2)
 }
 
 function formatText(command) {
@@ -195,7 +150,6 @@ function submitItem() {
 
 onMounted(async () => {
   await fetchCategories()
-  readAgentPublishDraft()
 })
 </script>
 

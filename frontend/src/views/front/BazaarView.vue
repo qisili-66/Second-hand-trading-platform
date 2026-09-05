@@ -282,37 +282,9 @@ async function contactExchangeOwner(exchange) {
   await contactItem({ ...(exchange.item || {}), id: exchange.itemId, itemId: exchange.itemId }, exchangeContactMessage(exchange))
 }
 
-function readAgentWantedDraft() {
-  const raw = sessionStorage.getItem('campus-agent-wanted-draft')
-  if (!raw) return
-  try {
-    const draft = JSON.parse(raw)
-    if (!authStore.isLoggedIn) return
-    sessionStorage.removeItem('campus-agent-wanted-draft')
-    publishWanted(draft)
-  } catch (error) {
-    sessionStorage.removeItem('campus-agent-wanted-draft')
-  }
-}
-
-function readAgentSwapDraft() {
-  const raw = sessionStorage.getItem('campus-agent-swap-draft')
-  if (!raw) return
-  try {
-    const draft = JSON.parse(raw)
-    if (!authStore.isLoggedIn) return
-    sessionStorage.removeItem('campus-agent-swap-draft')
-    openSwapDialog(draft)
-  } catch (error) {
-    sessionStorage.removeItem('campus-agent-swap-draft')
-  }
-}
-
 onMounted(() => {
   fetchCategories()
   loadBazaar()
-  readAgentWantedDraft()
-  readAgentSwapDraft()
 })
 </script>
 

@@ -14,6 +14,8 @@ class AgentRequest(BaseModel):
     campus: str | None = Field(default=None, validation_alias=AliasChoices("campus", "campusName"))
     user_id: int | None = Field(default=None, validation_alias=AliasChoices("user_id", "userId"))
     context: dict[str, Any] = Field(default_factory=dict)
+    run_id: str = Field(default="", validation_alias=AliasChoices("run_id", "runId"))
+    trace_id: str = Field(default="", validation_alias=AliasChoices("trace_id", "traceId"))
 
 
 class ParsedNeed(BaseModel):
@@ -32,24 +34,23 @@ class ItemRecommendation(BaseModel):
     reason: str
     risk: str
     bargain_range: str
-    chat_draft: str
 
 
-class WantedDraft(BaseModel):
-    title: str
-    description: str
-    budget_min: float | None = None
-    budget_max: float | None = None
-    campus: str = ""
+class AgentStep(BaseModel):
+    type: str = "tool"
+    tool: str = ""
+    input: str = ""
+    output: str = ""
+    status: str = "SUCCEEDED"
+    duration_ms: int = Field(default=0, validation_alias=AliasChoices("duration_ms", "durationMs"))
+    error_code: str = Field(default="", validation_alias=AliasChoices("error_code", "errorCode"))
 
 
-class SwapDraft(BaseModel):
-    title: str
-    expected_title: str
-    description: str
-    category: str = ""
-    target_category: str = ""
-    campus: str = ""
+class KnowledgeCitation(BaseModel):
+    source_id: str = Field(default="", validation_alias=AliasChoices("source_id", "sourceId"))
+    source_type: str = Field(default="", validation_alias=AliasChoices("source_type", "sourceType"))
+    title: str = ""
+    score: float | None = None
 
 
 class BuyerAgentResponse(BaseModel):
@@ -58,31 +59,13 @@ class BuyerAgentResponse(BaseModel):
     intent: Literal["BUY"] = "BUY"
     parsed_need: ParsedNeed
     recommendations: list[ItemRecommendation] = Field(default_factory=list)
-    should_create_wanted: bool = False
-    wanted_draft: WantedDraft | None = None
-    swap_draft: SwapDraft | None = None
     summary: str = ""
     next_actions: list[str] = Field(default_factory=list)
-
-
-class PublishDraft(BaseModel):
-    title: str
-    description: str
-    category: str
-    condition: str
-    price_range: str
-    campus_suggestion: str
-    trade_place_suggestion: str
-    swap_supported: bool = False
-
-
-class SellerAgentResponse(BaseModel):
-    agent: Literal["seller"] = "seller"
-    mode: str = "fallback"
-    intent: Literal["SELL"] = "SELL"
-    draft: PublishDraft
-    risk_tips: list[str] = Field(default_factory=list)
-    next_actions: list[str] = Field(default_factory=list)
+    run_id: str = Field(default="", validation_alias=AliasChoices("run_id", "runId"))
+    trace_id: str = Field(default="", validation_alias=AliasChoices("trace_id", "traceId"))
+    model: str = ""
+    steps: list[AgentStep] = Field(default_factory=list)
+    citations: list[KnowledgeCitation] = Field(default_factory=list)
 
 
 class HealthResponse(BaseModel):

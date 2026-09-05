@@ -18,7 +18,6 @@ CampusAgent 是一个面向校园场景的智能闲置交易平台，提供商�
 
 - 本地前台预览：`http://127.0.0.1:5173`
 - 本地后台预览：`http://127.0.0.1:5173/admin`
-- 线上部署后，将以上地址替换为你的域名或服务器地址即可。
 
 项目 Logo：
 
@@ -32,9 +31,9 @@ CampusAgent 是一个面向校园场景的智能闲置交易平台，提供商�
 | --- | --- |
 | 前端 | Vue 3、Vite、Vue Router、Pinia、Element Plus、Axios、ECharts、SockJS、STOMP |
 | 后端 | Java 17、Spring Boot 4、Spring MVC、Spring WebSocket、JdbcTemplate、MyBatis-Plus、Lombok |
-| AI 服务 | Python 3.12、FastAPI、Pydantic 2、LangChain、千问 OpenAI-compatible API |
+| AI 服务 | Python 3.12、FastAPI、Pydantic 2、LangChain、LangGraph、Agnes OpenAI-compatible API |
 | 数据库 | MySQL 8、utf8mb4 |
-| 部署 | Nginx、systemd、环境变量 |
+| 本地运行 | IDEA、VS Code、Windows 批处理脚本、环境变量 |
 
 ## 功能特性
 
@@ -42,7 +41,7 @@ CampusAgent 是一个面向校园场景的智能闲置交易平台，提供商�
 - 交易闭环：订单创建、卖家接单、取消、完成、评价与信用分展示。
 - 实时互动：收藏、留言、站内聊天、系统通知与 WebSocket 实时推送。
 - 求购换物：求购发布、以物换物、匹配推荐、联系换物人、取消与完成。
-- Agent 能力：淘货推荐、风险提示、私聊草稿、求购/换物草稿、商品发布草稿；用户确认后可执行私聊、预约、发布求购、发布换物或发布商品。
+- Agent 能力：只读买家导购、风险提示、实时商品/卖家/订单查询、可审计推荐与知识检索；不执行私聊、下单、发布、支付或纠纷处理。
 - 管理后台：数据概览、用户管理、商品管理、分类管理、订单、举报、公告与系统配置。
 - 权限控制：普通用户与管理员 JWT 分离，前端路由守卫和后端接口鉴权。
 
@@ -83,7 +82,7 @@ backend/sql/seed_data.sql   # 基础配置、演示账号和 100 条商品数据
 
 ### 3. 配置环境变量
 
-复制 `backend/.env.example` 为不提交的 `backend/.env`，并将其中变量加载到运行环境。后端不会提供数据库密码或 JWT 密钥的弱默认值；至少需要设置 `DB_URL`、`DB_USERNAME`、`DB_PASSWORD` 和长度不少于 32 位的 `JWT_SECRET`。生产环境请使用 systemd `EnvironmentFile` 或平台密钥管理功能注入这些变量。
+复制 `backend/.env.example` 为不提交的 `backend/.env`，并将其中变量配置到 IDEA 的本地运行环境。后端不会提供数据库密码或 JWT 密钥的弱默认值；至少需要设置 `DB_URL`、`DB_USERNAME`、`DB_PASSWORD` 和长度不少于 32 位的 `JWT_SECRET`。
 
 AI 服务在 `ai/.env` 中配置模型能力。首次启动时可参考 `ai/.env.example` 创建该文件。
 
@@ -103,10 +102,10 @@ curl.exe http://127.0.0.1:8080/api/health
 ### 5. 启动 AI 服务
 
 ```bat
-ai\start.bat
+start-ai.bat
 ```
 
-AI 服务默认运行在 `http://127.0.0.1:8001`。未配置 `QWEN_API_KEY` 时，服务仍会返回规则兜底结果，便于本地联调。
+AI 服务默认运行在 `http://127.0.0.1:8001`。未配置有效的 `EXTERNAL_LLM_API_KEY` 时，服务仍会返回规则兜底结果，便于本地联调。
 
 ### 6. 启动前端
 
@@ -125,7 +124,7 @@ npm run dev
 
 ### 演示账号
 
-执行 `backend/sql/seed_data.sql` 后会重置本地演示数据，并创建基础平台配置、演示账号和 100 条商品。该脚本会清空现有业务数据，只应在本地开发或可丢弃的演示数据库中执行。出于安全考虑，README 不公开任何账号密码；请在本地种子脚本或部署环境中自行设置、查看并保管演示凭据。
+执行 `backend/sql/seed_data.sql` 后会重置本地演示数据，并创建基础平台配置、演示账号和 100 条商品。该脚本会清空现有业务数据，只应在本地开发或可丢弃的演示数据库中执行。出于安全考虑，README 不公开任何账号密码；请在本地种子脚本或本地环境中自行设置、查看并保管演示凭据。
 
 ## 目录结构
 
@@ -156,27 +155,37 @@ npm run dev
 | --- | --- |
 | `DB_URL` | MySQL JDBC 连接地址 |
 | `DB_USERNAME` / `DB_PASSWORD` | 数据库账号与密码 |
-| `JWT_SECRET` | JWT 签名密钥，生产环境必须替换 |
+| `JWT_SECRET` | JWT 签名密钥，本地也应使用长度不少于 32 位的随机值 |
 | `APP_UPLOAD_DIR` | 上传文件存储路径 |
 | `AI_SERVICE_BASE_URL` | AI 服务地址，默认 `http://127.0.0.1:8001` |
 | `AI_SERVICE_TIMEOUT_SECONDS` | 后端调用 AI 服务的超时秒数 |
 | `AI_SERVICE_MAX_CONCURRENT_REQUESTS` | 后端同时代理到 AI 服务的最大请求数，默认 `8` |
 | `AI_SERVICE_QUEUE_TIMEOUT_MS` | 后端等待 AI 并发槽的最长毫秒数，默认 `150` |
+| `AGENT_SERVICE_TOKEN` | Spring Boot 与 AI 服务的内部工具调用共享密钥，必须设置且不提交 |
+| `AGENT_TRACE_RETENTION_DAYS` | Agent Run、步骤与推荐审计记录保留天数，默认 `90` |
 
 ### AI 服务环境变量
 
 | 变量 | 说明 |
 | --- | --- |
-| `QWEN_API_KEY` | 通义千问 API Key；未配置时使用规则兜底 |
-| `QWEN_BASE_URL` | 千问 OpenAI-compatible 服务地址 |
-| `QWEN_MODEL` | 模型名称 |
+| `EXTERNAL_LLM_API_KEY` | Agnes API Key；未配置有效值时使用规则兜底 |
+| `EXTERNAL_LLM_BASE_URL` | Agnes OpenAI-compatible 服务地址 |
+| `EXTERNAL_LLM_MODEL` | 模型名称，默认 `agnes-2.0-flash` |
 | `LLM_TIMEOUT_SECONDS` | 大模型调用超时秒数 |
 | `LLM_MAX_RETRIES` | 单次 Agent 请求最多重试次数，默认 `1`，最大 `2` |
 | `LLM_MAX_CONCURRENT_REQUESTS` | AI 服务同时执行的模型调用数，默认 `4` |
 | `LLM_FAILURE_THRESHOLD` | 连续失败后打开熔断器的阈值，默认 `3` |
 | `LLM_CIRCUIT_RECOVERY_SECONDS` | 熔断器再次尝试探测上游前的等待秒数，默认 `30` |
-| `DB_HOST` / `DB_PORT` / `DB_NAME` | AI 服务查询商品数据的数据库连接配置 |
-| `DB_USER` / `DB_PASSWORD` | AI 服务数据库账号与密码 |
+| `BACKEND_BASE_URL` / `AGENT_SERVICE_TOKEN` | AI 只读工具网关地址与共享服务密钥；AI 服务不再直连数据库 |
+| `QDRANT_URL` / `QDRANT_COLLECTION` | 本地 Qdrant 配置 |
+| `EMBEDDING_PROVIDER` / `LOCAL_EMBEDDING_MODEL` / `LOCAL_EMBEDDING_DEVICE` | 本地 Embeddings 配置，默认 `local` / `BAAI/bge-m3` / `cpu` |
+| `OTEL_SERVICE_NAME` / `OTEL_EXPORTER_OTLP_ENDPOINT` | 可选的企业 OpenTelemetry OTLP 链路导出配置 |
+
+### 企业 Agent 与知识库
+
+买家 Agent 的价格、在售状态、信用与订单信息均通过 Spring Boot 内部只读工具查询；模型无法直接读取数据库或执行交易写操作。每次运行都会保存可脱敏回放的 Run、Step 和经后端校验的推荐快照。
+
+二期 RAG 使用本地 Qdrant 和 `sentence-transformers` 的 `BAAI/bge-m3` 向量模型。管理员在“Agent 知识库”中维护平台规则和 FAQ；商品、评价及规则变更进入 Outbox，由 AI 服务执行 `python -m app.knowledge_worker` 进行幂等索引。模型权重首次运行需要下载；不可用时仅使用开发回退向量，不会基于猜测回答。
 
 请勿提交 `.env`、数据库密码、JWT 密钥、AI Key 或支付密钥。
 
@@ -194,9 +203,7 @@ npm run dev
 | `POST` | `/api/orders` | 创建订单预约 |
 | `POST` | `/api/chats` | 创建聊天会话 |
 | `POST` | `/api/agent/buyer` | 平台买家 Agent |
-| `POST` | `/api/agent/seller` | 平台卖家 Agent |
-| `POST` | `/agents/buyer` | FastAPI 买家 Agent |
-| `POST` | `/agents/seller` | FastAPI 卖家 Agent |
+| `POST` | `/agents/buyer/runs` | FastAPI 买家 Agent 内部接口 |
 
 WebSocket 入口为 `/ws`。需要登录的接口应携带 JWT 认证信息；详细请求字段可查看对应 Controller、DTO 与前端 `src/services/api.js`。
 
@@ -204,15 +211,11 @@ WebSocket 入口为 `/ws`。需要登录的接口应携带 JWT 认证信息；�
 
 ### 前端请求显示超时怎么办？
 
-先确认后端健康检查：`curl http://127.0.0.1:8080/api/health`。普通 API 请求超时已配置为 30 秒；首页仅请求商品基础列表，不会自动调用 AI。若线上仍显示旧的 8 秒超时提示，请重新构建前端并清理浏览器缓存。
+先确认后端健康检查：`curl http://127.0.0.1:8080/api/health`。普通 API 请求超时已配置为 30 秒；首页仅请求商品基础列表，不会自动调用 AI。若仍显示旧的 8 秒超时提示，请重新构建前端并清理浏览器缓存。
 
 ### 不配置 AI Key 能运行吗？
 
-可以。AI 服务在未配置 `QWEN_API_KEY` 时会使用规则兜底结果；配置后可获得大模型增强的推荐与文案生成能力。
-
-### 生产环境如何部署？
-
-推荐使用 Nginx 托管前端静态资源并反向代理 `/api` 和 `/ws`；使用 systemd 托管 Spring Boot 与 FastAPI 服务。部署过程中请把环境文件和上传目录放在代码仓库外，并定期备份数据库。
+可以。AI 服务在未配置有效的 `EXTERNAL_LLM_API_KEY` 时会使用规则兜底结果；配置后可获得大模型增强的推荐与文案生成能力。
 
 ### 为什么不能直接开启真实支付？
 

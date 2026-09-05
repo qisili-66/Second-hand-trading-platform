@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const DEFAULT_TIMEOUT_MS = 30000
-const AGENT_TIMEOUT_MS = 30000
+const AGENT_TIMEOUT_MS = 60000
 
 export const api = axios.create({
   baseURL: '/api',
@@ -122,11 +122,17 @@ export const chatApi = {
 
 export const agentApi = {
   buyer: (data) => api.post('/agent/buyer', data, { timeout: AGENT_TIMEOUT_MS }),
-  seller: (data) => api.post('/agent/seller', data, { timeout: AGENT_TIMEOUT_MS }),
+  buyerRun: (data) => api.post('/agent/buyer/runs', data, { timeout: AGENT_TIMEOUT_MS }),
+  runs: () => api.get('/agent/runs'),
+  run: (runId) => api.get(`/agent/runs/${runId}`),
+  clearRuns: () => api.delete('/agent/runs'),
+  buyerInsights: () => api.get('/agent/insights/buyer'),
+  sellerInsights: () => api.get('/agent/insights/seller'),
 }
 
 export const adminApi = {
   dashboard: () => api.get('/admin/dashboard'),
+  agentOperations: () => api.get('/admin/agent-operations'),
   changePassword: (data) => api.patch('/admin/password', data),
   users: (params) => api.get('/admin/users', { params }),
   disableUser: (userId) => api.patch(`/admin/users/${userId}/disable`),
@@ -155,4 +161,9 @@ export const adminApi = {
   createNotice: (data) => api.post('/admin/notices', data),
   updateNotice: (noticeId, data) => api.put(`/admin/notices/${noticeId}`, data),
   deleteNotice: (noticeId) => api.delete(`/admin/notices/${noticeId}`),
+  knowledgeDocuments: () => api.get('/admin/knowledge-documents'),
+  createKnowledgeDocument: (data) => api.post('/admin/knowledge-documents', data),
+  updateKnowledgeDocument: (documentId, data) => api.put(`/admin/knowledge-documents/${documentId}`, data),
+  publishKnowledgeDocument: (documentId) => api.patch(`/admin/knowledge-documents/${documentId}/publish`),
+  reindexKnowledge: () => api.post('/admin/knowledge-documents/reindex'),
 }

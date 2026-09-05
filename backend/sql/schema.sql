@@ -403,3 +403,82 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   INDEX idx_audit_logs_admin_id (admin_id),
   INDEX idx_audit_logs_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Agent audit records are deliberately separate from audit_logs: they contain
+-- user-scoped execution history instead of administrator actions.
+CREATE TABLE IF NOT EXISTS agent_runs (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  run_id CHAR(36) NOT NULL UNIQUE,
+  user_id BIGINT NOT NULL,
+  agent_type VARCHAR(32) NOT NULL,
+  input_text VARCHAR(1000) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  model_name VARCHAR(128),
+  trace_id VARCHAR(64),
+  output_json LONGTEXT,
+  error_code VARCHAR(64),
+  started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  finished_at DATETIME,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_agent_runs_user_created (user_id, created_at),
+  INDEX idx_agent_runs_status_created (status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS agent_steps (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  run_id CHAR(36) NOT NULL,
+  step_no INT NOT NULL,
+  step_type VARCHAR(32) NOT NULL,
+  tool_name VARCHAR(96),
+  input_summary TEXT,
+  output_summary TEXT,
+  status VARCHAR(32) NOT NULL,
+  duration_ms BIGINT NOT NULL DEFAULT 0,
+  error_code VARCHAR(64),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_agent_steps_run_step (run_id, step_no),
+  INDEX idx_agent_steps_run (run_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS agent_recommendations (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  run_id CHAR(36) NOT NULL,
+  item_id BIGINT NOT NULL,
+  reason VARCHAR(1000) NOT NULL,
+  snapshot_json LONGTEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_agent_recommendations_run (run_id),
+  INDEX idx_agent_recommendations_item (item_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS knowledge_documents (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  document_key VARCHAR(160) NOT NULL UNIQUE,
+  document_type VARCHAR(32) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  content LONGTEXT NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  version_no INT NOT NULL DEFAULT 1,
+  source_ref VARCHAR(255),
+  updated_by BIGINT NOT NULL,
+  published_at DATETIME,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_knowledge_documents_status_type (status, document_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS knowledge_outbox (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_type VARCHAR(64) NOT NULL,
+  aggregate_type VARCHAR(32) NOT NULL,
+  aggregate_id VARCHAR(160) NOT NULL,
+  payload_json LONGTEXT NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  attempts INT NOT NULL DEFAULT 0,
+  available_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  processed_at DATETIME,
+  last_error VARCHAR(500),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_knowledge_outbox_status_available (status, available_at),
+  INDEX idx_knowledge_outbox_aggregate (aggregate_type, aggregate_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

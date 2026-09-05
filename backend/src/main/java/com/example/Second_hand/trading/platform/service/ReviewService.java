@@ -28,14 +28,16 @@ public class ReviewService {
 	private final OrderMapper orderMapper;
 	private final UserService userService;
 	private final MessageService messageService;
+	private final KnowledgeService knowledgeService;
 
 	public ReviewService(JdbcTemplate jdbcTemplate, ReviewMapper reviewMapper, OrderMapper orderMapper,
-			UserService userService, MessageService messageService) {
+			UserService userService, MessageService messageService, KnowledgeService knowledgeService) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.reviewMapper = reviewMapper;
 		this.orderMapper = orderMapper;
 		this.userService = userService;
 		this.messageService = messageService;
+		this.knowledgeService = knowledgeService;
 	}
 
 	@Transactional
@@ -83,6 +85,7 @@ public class ReviewService {
 		userService.updateCreditScore(order.getSellerId(), rating);
 		messageService.createNotification(order.getSellerId(), "SYSTEM", "收到新的交易评价",
 				displayName(reviewerId) + " 已评价订单 " + order.getOrderNo() + "，评分 " + rating + " 星。");
+		knowledgeService.enqueueReview(review.getId(), order.getItemId());
 		return reviewById(review.getId());
 	}
 

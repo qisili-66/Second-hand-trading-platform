@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from fastapi import Body, FastAPI, HTTPException
+from secrets import compare_digest
+
+from fastapi import Body, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.agents.buyer_agent import BuyerAgent
-from app.agents.seller_agent import SellerAgent
+from app.agents.buyer_run_agent import BuyerRunAgent
 from app.config import Settings, get_settings
-from app.llm import QwenLLM
-from app.schemas import AgentRequest, BuyerAgentResponse, HealthResponse, SellerAgentResponse
+from app.llm import ExternalLLM
+from app.observability import configure_observability
+from app.schemas import AgentRequest, BuyerAgentResponse, HealthResponse
 
 app = FastAPI(title="Campus Trade AI", version="0.1.0")
 
@@ -19,6 +21,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+configure_observability(get_settings())
+
 
 def _settings() -> Settings:
     return get_settings()
@@ -27,10 +31,10 @@ def _settings() -> Settings:
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     settings = _settings()
-    llm = QwenLLM(settings)
+    llm = ExternalLLM(settings)
     runtime = llm.runtime_status
     return HealthResponse(
-        model=settings.qwen_model,
+        model=settings.external_llm_model,
         llm_configured=llm.configured,
         llm_circuit_state=runtime.state,
         llm_consecutive_failures=runtime.consecutive_failures,
@@ -38,17 +42,20 @@ def health() -> HealthResponse:
     )
 
 
-@app.post("/agents/buyer", response_model=BuyerAgentResponse)
-def buyer_agent(request: AgentRequest | None = Body(default=None)) -> BuyerAgentResponse:
+@app.post("/agents/buyer/runs", response_model=BuyerAgentResponse)
+def buyer_agent_run(
+    request: AgentRequest | None = Body(default=None),
+    service_token: str | None = Header(default=None, alias="X-Agent-Service-Token"),
+) -> BuyerAgentResponse:
+    settings = _settings()
+    if not settings.agent_service_token.strip() or not service_token or not compare_digest(
+        settings.agent_service_token, service_token
+    ):
+        raise HTTPException(status_code=401, detail="Agent service authentication failed")
     if request is None:
         raise HTTPException(status_code=400, detail="请先输入 Agent 需求内容")
-    settings = _settings()
-    return BuyerAgent(settings).run(request)
-
-
-@app.post("/agents/seller", response_model=SellerAgentResponse)
-def seller_agent(request: AgentRequest | None = Body(default=None)) -> SellerAgentResponse:
-    if request is None:
-        raise HTTPException(status_code=400, detail="请先输入 Agent 需求内容")
-    settings = _settings()
-    return SellerAgent(settings).run(request)
+    return BuyerRunAgent(settings).run(
+        request,
+        request.run_id,
+        request.trace_id,
+    )

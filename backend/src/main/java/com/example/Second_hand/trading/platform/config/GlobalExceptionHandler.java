@@ -4,6 +4,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.dao.DataAccessException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -16,6 +19,8 @@ import com.example.Second_hand.trading.platform.exception.AgentServiceException.
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+	private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
 	@ExceptionHandler(ResponseStatusException.class)
 	public ResponseEntity<ApiResponse<Object>> handleResponseStatus(ResponseStatusException ex) {
 		HttpStatusCode status = ex.getStatusCode();
@@ -35,6 +40,13 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ApiResponse<Object>> handleIllegalState(IllegalStateException ex) {
 		String message = ex.getMessage() == null || ex.getMessage().isBlank() ? "服务暂不可用" : ex.getMessage();
 		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ApiResponse.error(50300, message));
+	}
+
+	@ExceptionHandler(DataAccessException.class)
+	public ResponseEntity<ApiResponse<Object>> handleDataAccess(DataAccessException ex) {
+		log.error("Database request failed", ex);
+		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+				.body(ApiResponse.error(50300, "数据库暂不可用，请稍后重试"));
 	}
 
 	@ExceptionHandler(AgentServiceException.class)
@@ -66,6 +78,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ApiResponse<Object>> handleException(Exception ex) {
+		log.error("Unhandled request failure", ex);
 		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 				.body(ApiResponse.error(50000, "服务器内部错误"));
 	}

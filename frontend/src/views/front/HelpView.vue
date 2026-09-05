@@ -2,7 +2,7 @@
   <main class="page-wrap help-page">
     <section class="help-hero">
       <p class="section-kicker">帮助中心</p>
-      <h1>CampusAgent 智能校园闲置平台服务说明</h1>
+      <h1>Campus Trade Agent 服务说明</h1>
       <p>面向校内学生的闲置发布、求购、咨询、订单与安全交易支持。</p>
     </section>
 

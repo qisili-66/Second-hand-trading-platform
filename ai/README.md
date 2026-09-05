@@ -4,8 +4,9 @@ Python + FastAPI + LangChain service for the campus second-hand trading platform
 
 ## Agents
 
-- Buyer Agent: understands natural-language buying needs, recommends items, explains risks, suggests bargain ranges, drafts chat messages or wanted posts, and creates swap drafts when the user asks to exchange items.
-- Seller Agent: turns a short selling note into a publish draft with title, description, category, condition, price range, trade place, swap support, and risk tips.
+- Buyer Agent: understands natural-language buying needs, searches on-sale items, verifies real-time item status, reads permitted public seller-credit summaries, queries only the current user's orders and preferences, then returns explainable recommendations.
+
+The current delivery contains only this read-only buyer capability. It cannot send private messages, create orders, publish items/wanted posts/swaps, handle disputes, access payments, or connect directly to MySQL. Business data is obtained only through Spring's authenticated internal read-only tool gateway.
 
 ## Quick Start
 
@@ -29,15 +30,22 @@ copy .env.example .env
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
-Do not commit `.env`. Put the real Qwen key only in your local environment.
+Do not commit `.env`. Put the real Agnes key only in your local `ai/.env` file.
 
 If `py -3.12` is unavailable, install Python 3.12 from the official Python installer and create the virtual environment with that executable. Avoid using the machine default `python` if it points to Python 3.14.
 
 ## Environment
 
-- `QWEN_API_KEY`: Qwen API key. Required only for LLM-enhanced output.
-- `QWEN_BASE_URL`: OpenAI-compatible Qwen endpoint.
-- `QWEN_MODEL`: defaults to `qwen3.7-max`.
-- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`: optional MySQL connection for live item search.
+- `EXTERNAL_LLM_API_KEY`: Agnes API key. Required only for LLM-enhanced output.
+- `EXTERNAL_LLM_BASE_URL`: OpenAI-compatible Agnes endpoint. Defaults to `https://apihub.agnes-ai.com/v1`.
+- `EXTERNAL_LLM_MODEL`: defaults to `agnes-2.0-flash`.
+- `BACKEND_BASE_URL` and `AGENT_SERVICE_TOKEN`: Spring internal read-only tool gateway settings.
 
-When `QWEN_API_KEY` or LangChain dependencies are unavailable, the service returns deterministic rule-based fallback results so the platform remains demoable.
+When `EXTERNAL_LLM_API_KEY` or LangChain dependencies are unavailable, the service returns deterministic rule-based fallback results so the platform remains demoable.
+
+## Trust, permissions, and audit
+
+- The browser authenticates with JWT. Spring uses the JWT `authId` and ignores any `userId` submitted by the browser.
+- Spring and FastAPI authenticate internal requests with the same local-only `AGENT_SERVICE_TOKEN`; never expose it to the browser.
+- Before a recommendation is saved, Spring rechecks that the item is visible, still `ON_SALE`, and has not changed price.
+- Every run records its status and a redacted tool timeline. Failed tool or service calls are recorded as failed steps.

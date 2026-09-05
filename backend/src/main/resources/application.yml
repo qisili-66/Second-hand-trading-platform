@@ -7,14 +7,16 @@ server:
       force: true
 
 spring:
+  config:
+    import: optional:file:./.env[.properties],optional:file:./backend/.env[.properties]
   application:
     name: Second-hand-trading-platform
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: jdbc:mysql://127.0.0.1:3306/second_hand_trade?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
 
   sql:
     init:
@@ -27,24 +29,26 @@ spring:
 
 app:
   upload:
-    dir: ${APP_UPLOAD_DIR:/opt/app/uploads}
+    dir: ${APP_UPLOAD_DIR:./uploads}
   ai:
     base-url: ${AI_SERVICE_BASE_URL:http://127.0.0.1:8001}
-    timeout-seconds: ${AI_SERVICE_TIMEOUT_SECONDS:25}
+    timeout-seconds: ${AI_SERVICE_TIMEOUT_SECONDS:60}
     max-concurrent-requests: ${AI_SERVICE_MAX_CONCURRENT_REQUESTS:8}
     queue-timeout-ms: ${AI_SERVICE_QUEUE_TIMEOUT_MS:150}
+    service-token: ${AGENT_SERVICE_TOKEN:}
+    trace-retention-days: ${AGENT_TRACE_RETENTION_DAYS:90}
   jwt:
     secret: ${JWT_SECRET}
     expire-minutes: 120
   payment:
-    return-url: http://114.132.69.232/orders
+    return-url: ${PAYMENT_RETURN_URL:http://127.0.0.1:5173/orders}
     alipay:
       enabled: false
       gateway: https://openapi.alipay.com/gateway.do
       app-id:
       private-key:
-      notify-url: http://114.132.69.232/api/payments/alipay/notify
-      return-url: http://114.132.69.232/orders
+      notify-url: ${ALIPAY_NOTIFY_URL:}
+      return-url: ${PAYMENT_RETURN_URL:http://127.0.0.1:5173/orders}
     wechat:
       enabled: false
       gateway: https://api.mch.weixin.qq.com
@@ -52,4 +56,4 @@ app:
       mch-id:
       merchant-serial-no:
       private-key:
-      notify-url: http://114.132.69.232/api/payments/wechat/notify
+      notify-url: ${WECHAT_NOTIFY_URL:}
