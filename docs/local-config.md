@@ -19,9 +19,11 @@ Copy-Item ai/.env.example ai/.env
 至少需要配置：
 
 - `backend/.env`：`DB_USERNAME`、`DB_PASSWORD`、长度不少于 32 位的 `JWT_SECRET`、`AGENT_SERVICE_TOKEN`。
-- `ai/.env`：与后端相同的 `AGENT_SERVICE_TOKEN`、聊天模型的 `EXTERNAL_LLM_API_KEY`、`QDRANT_URL`、`EMBEDDING_PROVIDER=local`、`LOCAL_EMBEDDING_MODEL=BAAI/bge-m3`。
+- `ai/.env`：与后端相同的 `AGENT_SERVICE_TOKEN`、聊天模型的 `EXTERNAL_LLM_API_KEY`、`QDRANT_URL`、`EMBEDDING_PROVIDER=local`、`LOCAL_EMBEDDING_MODEL=BAAI/bge-small-zh-v1.5`。
 
 本地 Qdrant 使用 `127.0.0.1:6333`。首次使用 BGE-M3 时需要下载模型权重；权重不可用时，开发环境可由 `LOCAL_EMBEDDING_FALLBACK=true` 提供确定性回退向量。
+
+国内网络环境可将 `HF_ENDPOINT` 设置为 `https://hf-mirror.com`，用于下载 Hugging Face 模型权重。
 
 提交前检查：
 

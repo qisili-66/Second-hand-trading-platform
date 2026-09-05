@@ -64,7 +64,7 @@
 - [x] 验证 `product_knowledge` 只返回 Top 5、超过阈值的证据；没有证据时明确拒答。（实现已固定 limit=5、阈值=0.35）
 - [x] 验证 RAG 回答附商品或规则来源引用，且不会替代价格、库存、信用或订单的 Spring 工具直答。（工具分流与 citation 已实现；需手工验证模型实际选择路径）
 
-**当前联调记录（2026-09-05）**：Qdrant `qdrant/qdrant:v1.13.6` 已在本机 `127.0.0.1:6333` 运行，集合 `campus_trade_knowledge` 已创建；后端 `8080`、AI `8001`、MySQL 均可用。Embeddings 已切换为本地 `sentence-transformers` 的 `BAAI/bge-m3`（CPU），依赖已安装；模型权重首次运行仍需从 Hugging Face 下载，当前网络无法连接时会回退到本地确定性向量。AI 测试 `20 passed`。
+**当前联调记录（2026-09-05）**：Qdrant `qdrant/qdrant:v1.13.6` 已在本机 `127.0.0.1:6333` 运行，集合 `campus_trade_knowledge` 已创建；后端 `8080`、AI `8001`、MySQL 均可用。Embeddings 使用本地 `sentence-transformers` 的 `BAAI/bge-small-zh-v1.5`（CPU），模型已下载并验证生成 512 维向量；不再依赖 Agnes `/embeddings`。AI 测试 `20 passed`。
 
 ### P1 — 管理与质量控制
 

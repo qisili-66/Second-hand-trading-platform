@@ -10,6 +10,10 @@ try:
 except Exception:
     pass
 
+if os.getenv("HF_ENDPOINT"):
+    os.environ.setdefault("HF_ENDPOINT", os.getenv("HF_ENDPOINT", ""))
+
+
 logger = logging.getLogger(__name__)
 
 
