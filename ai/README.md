@@ -15,7 +15,7 @@ Use Python 3.12. Python 3.14 may break FastAPI/Pydantic/LangChain dependency com
 From the project root on Windows, you can start the local AI service with:
 
 ```bat
-ai\start.bat
+start-ai.bat
 ```
 
 The script creates `ai\.venv`, installs dependencies on the first successful run, creates `ai\.env` from `.env.example` if missing, and starts `http://127.0.0.1:8001`.

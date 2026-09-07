@@ -6,7 +6,7 @@
 
 - 现象：使用系统默认 `python` 导入 FastAPI/Pydantic/LangChain 相关依赖时失败，同时缺少 `pytest`、`langchain-openai` 等依赖。
 - 原因判断：机器默认 Python 指向 3.14，而当前 FastAPI/Pydantic/LangChain 组合不适合作为本项目运行时。
-- 修复：明确 AI 服务使用 Python 3.12；`ai/start.bat` 自动寻找 Python 3.12、创建 `.venv`、安装依赖并启动 `127.0.0.1:8001`。
+- 修复：明确 AI 服务使用 Python 3.12；根目录 `start-ai.bat` 自动寻找 Python 3.12、创建 `ai/.venv`、安装依赖并启动 `127.0.0.1:8001`。
 - 验证：Python 3.12 环境下 Agent 核心逻辑和测试通过。
 
 ### 2026-07-19：Spring Boot 4 Jackson 包名变化导致编译失败

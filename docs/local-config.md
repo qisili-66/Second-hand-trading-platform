@@ -6,7 +6,7 @@
 
 - `backend/.env.example`：Spring Boot 本地配置模板。
 - `backend/src/main/resources/application.example.yml`：不含真实凭据的 Spring 配置结构示例。
-- `ai/.env.example`：AI 服务、Qdrant 和本地 BGE-M3 配置模板。
+- `ai/.env.example`：AI 服务、Qdrant 和本地 Embedding 配置模板；使用根目录 `start-ai.bat` 启动 AI 服务。
 
 模板中的值均为占位符。复制模板为同目录下的 `.env` 后，再填入本机真实值；`.gitignore` 已忽略这两个文件。
 
