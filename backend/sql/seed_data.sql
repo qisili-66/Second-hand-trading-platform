@@ -5,7 +5,7 @@ SET NAMES utf8mb4;
 -- WARNING: This script clears existing business data, dictionaries, and admin data.
 -- Run it only for local development or a disposable demonstration database.
 -- It then seeds stable platform settings and one seller:
---   张益达 / 123456
+--   local demo user credentials are defined by this seed script; do not reuse them in production
 -- with 100 ON_SALE items across every category and campus.
 
 DELETE FROM chat_messages;

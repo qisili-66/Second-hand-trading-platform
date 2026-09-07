@@ -5,6 +5,7 @@ from app.agents.buyer_run_agent import BuyerGraphState
 from app.config import Settings
 from app.schemas import AgentRequest
 from app.tool_gateway import ToolGateway
+from app.rag import KnowledgeRetriever
 from langgraph.graph import StateGraph
 
 
@@ -68,3 +69,32 @@ def test_expired_run_deadline_records_a_failed_tool_step_without_network_access(
     assert result["source"] == "unavailable"
     assert gateway.steps[0]["status"] == "FAILED"
     assert gateway.steps[0]["errorCode"] == "agent_run_timeout"
+
+
+def test_knowledge_question_markers_are_detected():
+    agent = BuyerRunAgent(Settings())
+
+    assert agent._is_knowledge_question("线下面交验货要注意什么？")
+    assert agent._is_knowledge_question("平台售后规则是什么？")
+    assert not agent._is_knowledge_question("推荐 500 元以内的 iPad")
+
+
+def test_knowledge_retriever_filters_unpublished_policies(monkeypatch):
+    class Point:
+        def __init__(self, payload, score=0.9):
+            self.payload = payload
+            self.score = score
+
+    class Client:
+        def query_points(self, **_kwargs):
+            return type("Result", (), {"points": [
+                Point({"source_type": "POLICY", "status": "DRAFT", "title": "draft"}),
+                Point({"source_type": "POLICY", "status": "PUBLISHED", "title": "published", "content": "rule"}),
+            ]})()
+
+    retriever = KnowledgeRetriever(Settings(qdrant_url="http://qdrant", embedding_provider="local"))
+    monkeypatch.setattr(retriever, "_clients", lambda: (Client(), type("Embeddings", (), {"embed_query": lambda _self, _text: [0.1]} )()))
+
+    result = retriever.search("验货规则")
+
+    assert [item["title"] for item in result["evidence"]] == ["published"]

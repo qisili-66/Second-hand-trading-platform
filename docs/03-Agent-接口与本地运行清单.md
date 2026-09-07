@@ -103,10 +103,10 @@ npm run build
 也可以从项目根目录运行固定验收脚本：
 
 ```powershell
-.\scripts\verify-phase-one.ps1
+.\docs\verify-phase-one.ps1
 ```
 
-该脚本依次执行 AI 全量测试、后端 Agent 聚焦测试、后端编译和前端构建，最后输出两账号手工联调清单。它要求 ai/.venv 使用 Python 3.12；若本机遗留 Python 3.14 的旧虚拟环境，删除 ai/.venv 后双击 start-ai.bat 重建。若只需要自动化检查，可使用 .\scripts\verify-phase-one.ps1 -SkipManualChecklist。
+该脚本依次执行 AI 全量测试、后端 Agent 聚焦测试、后端编译和前端构建，最后输出两账号手工联调清单。它要求 ai/.venv 使用 Python 3.12；若本机遗留 Python 3.14 的旧虚拟环境，删除 ai/.venv 后双击 start-ai.bat 重建。若只需要自动化检查，可使用 .\docs\verify-phase-one.ps1 -SkipManualChecklist。
 
 ## 明确不纳入当前建设
 

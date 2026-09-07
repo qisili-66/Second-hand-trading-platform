@@ -57,14 +57,14 @@
 
 ### P0 — 建立可验证的本地知识检索
 
-- [x] 自行提供本地 Qdrant 实例，并在 `ai/.env` 设置 `QDRANT_URL`、集合名和本地 `BAAI/bge-m3` 嵌入模型；真实密钥不得提交。
+- [x] 自行提供本地 Qdrant 实例，并在 `ai/.env` 设置 `QDRANT_URL`、集合名和本地 `BAAI/bge-small-zh-v1.5` 嵌入模型；真实密钥不得提交。
 - [x] 验证商品、评价、已发布规则文章的变更会写入 `knowledge_outbox`。（代码路径已覆盖商品与评价；规则文章由知识库发布/重建入队，仍建议手工回归页面流程）
 - [x] 执行 `python -m app.knowledge_worker`，验证 Outbox 领取、upsert 和完成回写。（当前 2 条事件已为 `SUCCEEDED`）
 - [x] 验证商品下架或删除后，关联知识点会从 Qdrant 删除，且不再作为回答证据。（代码已实现 DELETE 事件与检索状态过滤；需在页面完成一次下架手工回归）
 - [x] 验证 `product_knowledge` 只返回 Top 5、超过阈值的证据；没有证据时明确拒答。（实现已固定 limit=5、阈值=0.35）
 - [x] 验证 RAG 回答附商品或规则来源引用，且不会替代价格、库存、信用或订单的 Spring 工具直答。（工具分流与 citation 已实现；需手工验证模型实际选择路径）
 
-**当前联调记录（2026-09-05）**：Qdrant `qdrant/qdrant:v1.13.6` 已在本机 `127.0.0.1:6333` 运行，集合 `campus_trade_knowledge` 已创建；后端 `8080`、AI `8001`、MySQL 均可用。Embeddings 使用本地 `sentence-transformers` 的 `BAAI/bge-small-zh-v1.5`（CPU），模型已下载并验证生成 512 维向量；不再依赖 Agnes `/embeddings`。AI 测试 `20 passed`。
+**当前联调记录（2026-09-05）**：Qdrant `qdrant/qdrant:v1.13.6` 已在本机 `127.0.0.1:6333` 运行，集合 `campus_trade_knowledge` 已创建；后端 `8080`、AI `8001`、MySQL 均可用。Embeddings 使用本地 `sentence-transformers` 的 `BAAI/bge-small-zh-v1.5`（CPU），模型已下载并验证生成 512 维向量；不再依赖 Agnes `/embeddings`。AI 测试 `22 passed`。知识问句（规则、验货、售后、纠纷、FAQ 等）现在确定性直达 RAG，不再被商品推荐流程覆盖；检索器仅接受 `POLICY=PUBLISHED` 和 `ITEM=ON_SALE`。后台录入规则后必须点击“发布”，仅保存草稿不会进入可引用证据。
 
 ### P1 — 管理与质量控制
 
@@ -82,6 +82,20 @@
 ## 建议执行顺序
 
 1. 完成一期所有 P0 的旧能力清理、权限核验与降级测试。
-2. 用 scripts/verify-phase-one.ps1 完成一期 P1/P2 回归，并执行两账号页面联调。
+2. 用 docs/verify-phase-one.ps1 完成一期 P1/P2 回归，并执行两账号页面联调。
 3. 启动二期 P0 的本地 Qdrant 与 Outbox/Worker 联调。
 4. 完成二期 P1 后，再评估是否扩展知识源或运营分析。
+
+## 项目收尾状态（2026-09-06）
+
+- [x] 代码验收：`docs/verify-phase-one.ps1 -SkipManualChecklist` 全部通过；AI 测试 22 项通过，后端聚焦测试、编译和前端生产构建通过。
+- [x] 本地联调基础设施：MySQL、Spring Boot `8080`、FastAPI `8001`、Qdrant `6333` 可用；Embedding 使用本地 `sentence-transformers`，不依赖外部 Embeddings 服务。
+- [x] Agent 安全边界：买家 Agent 只读，不能发布商品、发私聊、创建订单、支付或处理纠纷；业务事实由 Spring Boot 鉴权后提供。
+- [x] 知识库闭环：管理员维护规则/FAQ，发布后进入 Outbox，由 Worker 幂等同步到 Qdrant；规则问题确定性走 RAG，草稿和下架商品不会作为证据。
+- [ ] 上线前人工验收：使用两个普通账号完成一次页面级越权检查，并发布至少一篇规则后从前台询问“线下面交验货要注意什么”。该项依赖本地登录态和管理员操作，不由自动化脚本代替。
+
+### 明确不纳入本项目
+
+以下条目是安全边界和产品范围，不是遗漏功能：外部网页抓取、未审核知识源、AI 直连数据库、Agent 交易写操作、真实支付、钱包充值/提现和资金托管。
+
+**收尾结论：** 项目代码与本地开发环境已达到当前需求的可交付状态；完成上面的人工验收后即可作为本地项目收尾，不需要再扩展二期 P2 范围。

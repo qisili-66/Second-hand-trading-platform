@@ -55,7 +55,7 @@ class Settings:
     qdrant_collection: str = os.getenv("QDRANT_COLLECTION", "campus_trade_knowledge")
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-v4")
     embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "local").strip().lower()
-    local_embedding_model: str = os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-m3")
+    local_embedding_model: str = os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
     local_embedding_device: str = os.getenv("LOCAL_EMBEDDING_DEVICE", "cpu")
     local_embedding_fallback: bool = os.getenv("LOCAL_EMBEDDING_FALLBACK", "false").strip().lower() in {"1", "true", "yes"}
     otel_service_name: str = os.getenv("OTEL_SERVICE_NAME", "campus-trade-ai")

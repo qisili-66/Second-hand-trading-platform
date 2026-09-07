@@ -4,9 +4,14 @@ doc/
 .idea/
 .vscode/
 mcp-shell.log
+.agents/
+.codex/
+**/.pytest_cache/
+**/logs/
 
 ai/.env
 backend/.env
 ai/.venv/
 ai/.pytest_cache/
 ai/**/__pycache__/
+backend/src/main/resources/application-local.yml

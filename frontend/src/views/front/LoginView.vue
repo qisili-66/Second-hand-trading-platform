@@ -20,7 +20,7 @@ const loginForm = reactive({
 
 const adminForm = reactive({
   account: 'admin',
-  password: 'admin123456',
+  password: '',
 })
 
 function loginRedirect(defaultPath) {
@@ -137,7 +137,7 @@ async function adminLogin() {
 
           <el-tab-pane label="管理员" name="admin">
             <el-alert
-              title="演示账号：admin / admin123456"
+              title="请输入本地管理员账号和密码"
               type="warning"
               show-icon
               :closable="false"

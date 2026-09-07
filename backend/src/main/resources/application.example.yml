@@ -1,5 +1,7 @@
+# Copy this file to application-local.yml or configure the values as environment variables.
+# Never commit real passwords, tokens, private keys, or API credentials.
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
   servlet:
     encoding:
       charset: UTF-8
@@ -7,21 +9,16 @@ server:
       force: true
 
 spring:
-  config:
-    import: optional:file:./.env[.properties],optional:file:./backend/.env[.properties]
   application:
     name: Second-hand-trading-platform
-
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
-
   sql:
     init:
       mode: never
-
   servlet:
     multipart:
       max-file-size: 10MB
@@ -35,11 +32,11 @@ app:
     timeout-seconds: ${AI_SERVICE_TIMEOUT_SECONDS:25}
     max-concurrent-requests: ${AI_SERVICE_MAX_CONCURRENT_REQUESTS:8}
     queue-timeout-ms: ${AI_SERVICE_QUEUE_TIMEOUT_MS:150}
-    service-token: ${AGENT_SERVICE_TOKEN:}
+    service-token: ${AGENT_SERVICE_TOKEN}
     trace-retention-days: ${AGENT_TRACE_RETENTION_DAYS:90}
   jwt:
     secret: ${JWT_SECRET}
-    expire-minutes: 120
+    expire-minutes: ${JWT_EXPIRE_MINUTES:120}
   payment:
     return-url: ${PAYMENT_RETURN_URL:http://127.0.0.1:5173/orders}
     alipay:

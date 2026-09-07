@@ -206,7 +206,7 @@ onMounted(loadNotifications)
       <main v-else class="admin-content">
         <el-card class="auth-required-card" shadow="never">
           <h1>还没登录管理员账号</h1>
-          <p>请使用 admin/admin123456 登录后进入后台管理系统。</p>
+          <p>请使用本地管理员账号登录后进入后台管理系统。</p>
           <el-button type="primary" size="large" @click="router.push({ path: '/login', query: { tab: 'admin' } })">
             前往管理员登录
           </el-button>

@@ -20,8 +20,8 @@ http://127.0.0.1:5173/
 ## Demo Accounts
 
 ```text
-Admin: admin / admin123456
-User:  张益达 or ZYD2026001 / 123456
+Admin: use the local credentials configured in your database
+User:  use the local demo credentials configured in your database
 ```
 
 The admin account is for `/admin` only. The ordinary user account is for the marketplace/user-facing pages only.

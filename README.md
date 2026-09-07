@@ -178,14 +178,14 @@ npm run dev
 | `LLM_CIRCUIT_RECOVERY_SECONDS` | 熔断器再次尝试探测上游前的等待秒数，默认 `30` |
 | `BACKEND_BASE_URL` / `AGENT_SERVICE_TOKEN` | AI 只读工具网关地址与共享服务密钥；AI 服务不再直连数据库 |
 | `QDRANT_URL` / `QDRANT_COLLECTION` | 本地 Qdrant 配置 |
-| `EMBEDDING_PROVIDER` / `LOCAL_EMBEDDING_MODEL` / `LOCAL_EMBEDDING_DEVICE` | 本地 Embeddings 配置，默认 `local` / `BAAI/bge-m3` / `cpu` |
+| `EMBEDDING_PROVIDER` / `LOCAL_EMBEDDING_MODEL` / `LOCAL_EMBEDDING_DEVICE` | 本地 Embeddings 配置，默认 `local` / `BAAI/bge-small-zh-v1.5` / `cpu` |
 | `OTEL_SERVICE_NAME` / `OTEL_EXPORTER_OTLP_ENDPOINT` | 可选的企业 OpenTelemetry OTLP 链路导出配置 |
 
 ### 企业 Agent 与知识库
 
 买家 Agent 的价格、在售状态、信用与订单信息均通过 Spring Boot 内部只读工具查询；模型无法直接读取数据库或执行交易写操作。每次运行都会保存可脱敏回放的 Run、Step 和经后端校验的推荐快照。
 
-二期 RAG 使用本地 Qdrant 和 `sentence-transformers` 的 `BAAI/bge-m3` 向量模型。管理员在“Agent 知识库”中维护平台规则和 FAQ；商品、评价及规则变更进入 Outbox，由 AI 服务执行 `python -m app.knowledge_worker` 进行幂等索引。模型权重首次运行需要下载；不可用时仅使用开发回退向量，不会基于猜测回答。
+二期 RAG 使用本地 Qdrant 和 `sentence-transformers` 的 `BAAI/bge-small-zh-v1.5` 向量模型。管理员在“Agent 知识库”中维护平台规则和 FAQ；商品、评价及规则变更进入 Outbox，由 AI 服务执行 `python -m app.knowledge_worker` 进行幂等索引。模型权重首次运行需要下载；不可用时仅使用开发回退向量，不会基于猜测回答。
 
 请勿提交 `.env`、数据库密码、JWT 密钥、AI Key 或支付密钥。
 

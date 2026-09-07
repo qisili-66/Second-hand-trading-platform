@@ -14,11 +14,11 @@
 QDRANT_URL=http://127.0.0.1:6333
 QDRANT_COLLECTION=campus_trade_knowledge
 EMBEDDING_PROVIDER=local
-LOCAL_EMBEDDING_MODEL=BAAI/bge-m3
+LOCAL_EMBEDDING_MODEL=BAAI/bge-small-zh-v1.5
 LOCAL_EMBEDDING_DEVICE=cpu
 ```
 
-Qdrant 检索使用本地 `sentence-transformers` 模型，不依赖 Agnes 的 `/embeddings` 接口；聊天模型仍使用 `EXTERNAL_LLM_API_KEY`。首次运行会下载 `BAAI/bge-m3` 权重，下载完成后可离线生成向量。
+Qdrant 检索使用本地 `sentence-transformers` 模型，不依赖 Agnes 的 `/embeddings` 接口；聊天模型仍使用 `EXTERNAL_LLM_API_KEY`。默认使用 `BAAI/bge-small-zh-v1.5`（512 维，CPU），首次运行会下载模型权重，下载完成后可离线生成向量。
 
 ## 数据流与一致性
 

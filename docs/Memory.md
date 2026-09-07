@@ -71,4 +71,4 @@
 - ai/.env 设置 OTEL_CONSOLE_EXPORTER=true 后，可以在本机 AI 服务控制台看到 Agent Run、工具名、耗时、状态和错误类型。配置 OTEL_EXPORTER_OTLP_ENDPOINT 时才会向企业 Collector 输出遥测。
 - 买家洞察接口只汇总本人收藏偏好、已完成订单和近期 Run；这些信息仅用于只读排序。卖家洞察只汇总本人商品、订单和评价；它不是卖家 Agent。
 - 管理后台的 Agent 运营页只展示近 30 天的聚合 Run、失败、工具耗时、推荐记录和同一用户推荐后的订单关联；它不会读取私聊正文，也不把关联统计表述为因果结论。
-- 一期自动化验收入口是 scripts/verify-phase-one.ps1。上线前仍需两个真实普通账号完成一次页面级越权与降级联调，详见 [03-Agent-接口与本地运行清单.md](03-Agent-接口与本地运行清单.md)。
+- 一期自动化验收入口是 docs/verify-phase-one.ps1。上线前仍需两个真实普通账号完成一次页面级越权与降级联调，详见 [03-Agent-接口与本地运行清单.md](03-Agent-接口与本地运行清单.md)。

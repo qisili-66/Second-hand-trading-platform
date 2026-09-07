@@ -54,7 +54,18 @@ class BuyerRunAgent:
         with span_context as span:
             span.set_attribute("agent.run_id", run_id)
             response = self._fallback(request, gateway)
-            if llm_configured and time.monotonic() < deadline:
+            # Route explicit policy/FAQ questions to RAG before product filtering.
+            knowledge_question = self._is_knowledge_question(request.message)
+            if knowledge_question:
+                knowledge = retriever.search(request.message)
+                evidence = knowledge.get("evidence") if isinstance(knowledge, dict) else []
+                if evidence:
+                    response.summary = "根据知识库：" + str(evidence[0].get("content") or "")[:560]
+                    response.mode = "rag"
+                else:
+                    response.summary = "知识库中没有找到已发布且可引用的依据，请先发布相关规则或 FAQ。"
+                    response.mode = "knowledge-unavailable"
+            if llm_configured and not knowledge_question and time.monotonic() < deadline:
                 response = self._run_graph_before_deadline(request, gateway, retriever, response, deadline) or response
         response.run_id = run_id
         response.trace_id = trace_id
@@ -62,6 +73,11 @@ class BuyerRunAgent:
         response.steps = [AgentStep.model_validate(step) for step in gateway.steps]
         response.citations = [KnowledgeCitation.model_validate(citation) for citation in retriever.citations]
         return response
+
+    @staticmethod
+    def _is_knowledge_question(message: str) -> bool:
+        markers = ("规则", "验货", "售后", "纠纷", "FAQ", "怎么处理", "注意事项", "平台要求")
+        return any(marker.lower() in message.lower() for marker in markers)
 
     def _run_graph_before_deadline(
         self, request: AgentRequest, gateway: ToolGateway, retriever: KnowledgeRetriever,

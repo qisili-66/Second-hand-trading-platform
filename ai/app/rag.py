@@ -37,7 +37,11 @@ class KnowledgeRetriever:
             self.citations = []
             for point in response.points:
                 payload = point.payload or {}
-                if payload.get("status") != "PUBLISHED" and payload.get("source_type") == "ITEM":
+                source_type = str(payload.get("source_type") or "")
+                status = str(payload.get("status") or "")
+                if source_type == "POLICY" and status != "PUBLISHED":
+                    continue
+                if source_type == "ITEM" and status != "ON_SALE":
                     continue
                 score = float(point.score)
                 if score < 0.35:
@@ -164,6 +168,6 @@ class _LocalEmbeddings:
         from sentence_transformers import SentenceTransformer
 
         return SentenceTransformer(
-            getattr(self.settings, "local_embedding_model", "BAAI/bge-m3"),
+            getattr(self.settings, "local_embedding_model", "BAAI/bge-small-zh-v1.5"),
             device=getattr(self.settings, "local_embedding_device", "cpu"),
         )
